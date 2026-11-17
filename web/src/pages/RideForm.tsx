@@ -4,6 +4,7 @@ import { supabase } from "../supabase";
 import { useOrgId } from "../lib/session";
 import { money, today } from "../lib/format";
 import { rideMessage, waLink } from "../lib/whatsapp";
+import { driverAvailability, hhmm, interval, type Availability, type TimedRide } from "../lib/availability";
 import VoiceButton from "../components/VoiceButton";
 import type { Customer, Driver, ParsedRide, Ride } from "../types";
 
@@ -60,6 +61,8 @@ export default function RideForm() {
   const [source, setSource] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  // Other rides on the same date, to know which driver is free
+  const [dayRides, setDayRides] = useState<TimedRide[]>([]);
   const [parsing, setParsing] = useState(false);
   const [missing, setMissing] = useState<string[]>([]);
   const [hint, setHint] = useState<string | null>(null);
@@ -123,6 +126,14 @@ export default function RideForm() {
       setSaved(true);
     });
   }, [id, isNew]);
+
+  useEffect(() => {
+    if (!form.ride_date) return;
+    supabase.from("rides")
+      .select("id, driver_id, ride_date, ride_time, duration_min, pickup, dropoff, status")
+      .eq("org_id", orgId).eq("ride_date", form.ride_date).eq("status", "active").not("driver_id", "is", null)
+      .then(({ data }) => setDayRides((data ?? []) as TimedRide[]));
+  }, [orgId, form.ride_date]);
 
   // Price memory: suggest price + subcontractor cost for customer & route
   useEffect(() => {
@@ -289,6 +300,26 @@ export default function RideForm() {
   };
 
   const driver = drivers.find((d) => d.id === form.driver_id);
+
+  const target = { id, ride_time: strOrNull(form.ride_time), duration_min: numOrNull(form.duration_min) };
+  const availability = new Map<string, Availability>(
+    drivers.map((d) => [d.id, driverAvailability(d.id, target, dayRides)]),
+  );
+  const availLabel = (a: Availability | undefined) => {
+    if (!a || !form.ride_time) return "";
+    if (a.kind === "free") return "✓ פנוי · ";
+    const iv = interval(a.with);
+    if (a.kind === "busy" && iv) return `✗ תפוס ${hhmm(iv.start)}–${hhmm(iv.end)} · `;
+    return "? יש נסיעה בלי שעה · ";
+  };
+  // Free drivers first (keeps the owner on top within each group)
+  const rank = (d: Driver) => {
+    const k = availability.get(d.id)?.kind;
+    return (k === "free" ? 0 : k === "unknown" ? 1 : 2) * 2 + (d.is_self ? 0 : 1);
+  };
+  const sortedDrivers = form.ride_time ? [...drivers].sort((a, b) => rank(a) - rank(b)) : drivers;
+  const chosenAvail = driver ? availability.get(driver.id) : undefined;
+  const freeCount = drivers.filter((d) => availability.get(d.id)?.kind === "free").length;
   const customer = customers.find((c) => c.id === form.customer_id);
   const profit = form.price && driver && !driver.is_self
     ? Number(form.price) - Number(form.driver_cost || 0) : null;
@@ -371,13 +402,24 @@ export default function RideForm() {
         נהג
         <select value={form.driver_id} onChange={(e) => set("driver_id", e.target.value)}>
           <option value="">— לא שובץ —</option>
-          {drivers.map((d) => (
+          {sortedDrivers.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.is_self ? `${d.name} (אני)` : d.name} · {d.seats} מקומות{d.car_model ? ` · ${d.car_model}` : ""}
+              {availLabel(availability.get(d.id))}{d.is_self ? `${d.name} (אני)` : d.name} · {d.seats} מקומות{d.car_model ? ` · ${d.car_model}` : ""}
             </option>
           ))}
         </select>
       </label>
+      {form.ride_time && drivers.length > 0 && (
+        <p className="small muted">
+          {freeCount} מתוך {drivers.length} נהגים פנויים בשעה {form.ride_time.slice(0, 5)}
+          {form.duration_min ? "" : " (בלי מרחק משוער מניחים נסיעה של שעה)"}
+        </p>
+      )}
+      {chosenAvail?.kind === "busy" && (
+        <div className="alert">
+          ⚠️ ל{driver!.name} כבר יש נסיעה באותו זמן: {chosenAvail.with.ride_time?.slice(0, 5)} {chosenAvail.with.pickup ?? "?"} ← {chosenAvail.with.dropoff ?? "?"}
+        </div>
+      )}
       {driver && form.passengers && Number(form.passengers) > driver.seats && (
         <div className="alert">⚠️ {form.passengers} נוסעים, וברכב של {driver.name} יש רק {driver.seats} מקומות</div>
       )}
