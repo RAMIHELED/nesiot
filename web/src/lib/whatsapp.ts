@@ -22,6 +22,8 @@ export type RideMessageInput = {
   driver_cost?: number | null;
   distance_km?: number | null;
   duration_min?: number | null;
+  /** Personal confirm/decline link for the driver */
+  response_url?: string | null;
 };
 
 export function rideMessage(r: RideMessageInput): string {
@@ -36,6 +38,7 @@ export function rideMessage(r: RideMessageInput): string {
     r.customer_name ? `👤 לקוח: ${r.customer_name}${r.customer_phone ? ` ${r.customer_phone}` : ""}` : "",
     r.driver_cost ? `💰 תשלום לנהג: ${r.driver_cost} ₪` : "",
     r.notes ? `📝 ${r.notes}` : "",
+    r.response_url ? `\n👉 לאישור או אם אינך יכול: ${r.response_url}` : "",
   ];
   return lines.filter(Boolean).join("\n");
 }

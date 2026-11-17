@@ -41,6 +41,11 @@ export type Ride = {
   distance_km: number | null;
   duration_min: number | null;
   recurring_id: string | null;
+  driver_status: "none" | "sent" | "confirmed" | "declined";
+  driver_token: string | null;
+  driver_sent_at: string | null;
+  driver_responded_at: string | null;
+  declined_driver_ids: string[];
 };
 
 export type RideWithNames = Ride & {

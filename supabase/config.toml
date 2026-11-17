@@ -427,3 +427,6 @@ enabled = true
 
 [functions.send-reminders]
 verify_jwt = false
+
+[functions.driver-response]
+verify_jwt = false

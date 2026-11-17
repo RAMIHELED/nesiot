@@ -7,7 +7,7 @@ import { hhmm, interval } from "../lib/availability";
 import type { Driver, RideWithNames } from "../types";
 
 type Range = "day" | "week";
-type Filter = "all" | "unassigned" | "assigned";
+type Filter = "all" | "unassigned" | "assigned" | "unconfirmed";
 type Tag = "cancelled" | "unassigned" | "self" | "contractor";
 
 const tagOf = (r: RideWithNames): Tag =>
@@ -50,11 +50,17 @@ export default function Calendar() {
 
   const active = rides.filter((r) => r.status === "active");
   const unassigned = active.filter((r) => !r.driver_id).length;
+  // Contractor rides the driver has not confirmed yet
+  const isUnconfirmed = (r: RideWithNames) =>
+    r.status === "active" && !!r.driver && !r.driver.is_self && r.driver_status !== "confirmed";
+  const unconfirmed = active.filter(isUnconfirmed).length;
+  const driverName = (id: string) => drivers.find((d) => d.id === id)?.name;
 
   const visible = rides.filter((r) =>
     filter === "all" ? true
       : filter === "unassigned" ? r.status === "active" && !r.driver_id
-        : r.status === "active" && !!r.driver_id);
+        : filter === "unconfirmed" ? isUnconfirmed(r)
+          : r.status === "active" && !!r.driver_id);
 
   const byDay = useMemo(() => {
     const map = new Map<string, RideWithNames[]>();
@@ -98,12 +104,18 @@ export default function Calendar() {
         <button className={`chip chip-assigned ${filter === "assigned" ? "on" : ""}`} onClick={() => setFilter("assigned")}>
           שובצו <b>{active.length - unassigned}</b>
         </button>
+        {unconfirmed > 0 && (
+          <button className={`chip chip-unassigned ${filter === "unconfirmed" ? "on" : ""}`} onClick={() => setFilter("unconfirmed")}>
+            ⏳ לא אישרו <b>{unconfirmed}</b>
+          </button>
+        )}
       </div>
       <div className="legend small">
         <span><i className="dot dot-unassigned" />לא שובץ</span>
         <span><i className="dot dot-self" />אני נוהג</span>
         <span><i className="dot dot-contractor" />קבלן</span>
         <span><i className="dot dot-cancelled" />בוטלה</span>
+        <span>✓ אישר · ⏳ ממתין לאישור</span>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -124,10 +136,14 @@ export default function Calendar() {
                       <strong>{shortTime(r.ride_time) || "--:--"}{r.recurring_id ? " 🔁" : ""}</strong>
                       <span className={`badge badge-${tag}`}>
                         {tag === "cancelled" ? "בוטלה" : tag === "unassigned" ? "⚠️ לא שובץ"
-                          : tag === "self" ? "אני" : r.driver!.name}
+                          : tag === "self" ? "אני"
+                            : `${r.driver_status === "confirmed" ? "✓ " : r.driver_status === "sent" ? "⏳ " : ""}${r.driver!.name}`}
                       </span>
                     </div>
                     <div>{r.pickup ?? "?"} ← {r.dropoff ?? "?"}</div>
+                    {tag === "unassigned" && r.driver_status === "declined" && r.declined_driver_ids?.length > 0 && (
+                      <div className="small declined">✗ {r.declined_driver_ids.map(driverName).filter(Boolean).join(", ")} סירב</div>
+                    )}
                     <div className="row between small muted">
                       <span>
                         {r.customer?.name ?? "ללא לקוח"}

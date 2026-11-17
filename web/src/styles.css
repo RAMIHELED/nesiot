@@ -127,3 +127,12 @@ textarea { resize: vertical; }
 .weekdays { display: flex; gap: 6px; }
 .daybtn { font: inherit; flex: 1; padding: 10px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); cursor: pointer; }
 .daybtn.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+
+/* Driver confirmation */
+.confirm-line { flex-wrap: wrap; }
+.ok-text { color: var(--self); font-weight: 600; }
+.declined { color: var(--danger); }
+.ok-box { background: #eaf7ee; border: 1px solid var(--self); border-radius: 10px; padding: 12px; font-weight: 600; color: #1a6b33; }
+.btn.danger-solid { background: var(--card); color: var(--danger); border-color: var(--danger); }
+.driver-page { max-width: 480px; margin: 0 auto; padding: 24px 16px; }
+.driver-page .big-line { font-size: 1.1rem; font-weight: 600; }

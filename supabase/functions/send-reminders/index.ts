@@ -87,6 +87,25 @@ async function runReminders() {
   return { rides: rides?.length ?? 0, sent };
 }
 
+// Driver got the ride link more than an hour ago and did not answer
+async function runUnconfirmed() {
+  const { data: rides, error } = await admin.rpc("due_unconfirmed");
+  if (error) throw error;
+  let sent = 0;
+  for (const r of rides ?? []) {
+    const { data } = await admin.rpc("org_push_targets", { p_org: r.org_id });
+    const [, m, d] = String(r.ride_date).split("-");
+    sent += await push((data ?? []) as Target[], {
+      title: `⏳ ${r.driver_name} עדיין לא אישר`,
+      body: `${Number(d)}/${Number(m)} ${hhmm(r.ride_time)} · ${r.pickup ?? "?"} ← ${r.dropoff ?? "?"}`,
+      url: `/rides/${r.ride_id}`,
+      tag: `unconfirmed-${r.ride_id}`,
+    });
+    await admin.from("rides").update({ unconfirmed_alert_at: new Date().toISOString() }).eq("id", r.ride_id);
+  }
+  return { rides: rides?.length ?? 0, sent };
+}
+
 async function runDigests() {
   const { data: orgs, error } = await admin.rpc("due_digests");
   if (error) throw error;
@@ -119,7 +138,8 @@ Deno.serve(async (req) => {
     try {
       const reminders = await runReminders();
       const digests = await runDigests();
-      return json({ ok: true, reminders, digests });
+      const unconfirmed = await runUnconfirmed().catch((err) => ({ error: (err as Error).message }));
+      return json({ ok: true, reminders, digests, unconfirmed });
     } catch (err) {
       console.error(err);
       return json({ error: (err as Error).message }, 500);

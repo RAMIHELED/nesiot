@@ -77,6 +77,9 @@ export default function RideForm() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(!isNew);
   const [recurringId, setRecurringId] = useState<string | null>(null);
+  // Driver confirmation (as saved in the database)
+  type Confirm = Pick<Ride, "driver_id" | "driver_status" | "driver_token" | "driver_sent_at" | "driver_responded_at" | "declined_driver_ids">;
+  const [confirm, setConfirm] = useState<Confirm | null>(null);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -124,6 +127,11 @@ export default function RideForm() {
       });
       setSource(r.source_text ?? "");
       setRecurringId(r.recurring_id ?? null);
+      setConfirm({
+        driver_id: r.driver_id, driver_status: r.driver_status ?? "none", driver_token: r.driver_token,
+        driver_sent_at: r.driver_sent_at, driver_responded_at: r.driver_responded_at,
+        declined_driver_ids: r.declined_driver_ids ?? [],
+      });
       setMeasuredRoute(r.distance_km != null ? routeKey(r.pickup ?? "", r.dropoff ?? "") : null);
       setSaved(true);
     });
@@ -287,9 +295,10 @@ export default function RideForm() {
       source_text: strOrNull(source),
     };
 
+    const CONFIRM_COLS = "id, driver_id, driver_status, driver_token, driver_sent_at, driver_responded_at, declined_driver_ids";
     const res = isNew
-      ? await supabase.from("rides").insert(row).select("id").single()
-      : await supabase.from("rides").update(row).eq("id", id).select("id").single();
+      ? await supabase.from("rides").insert(row).select(CONFIRM_COLS).single()
+      : await supabase.from("rides").update(row).eq("id", id).select(CONFIRM_COLS).single();
 
     setSaving(false);
     if (res.error) {
@@ -297,6 +306,7 @@ export default function RideForm() {
       return;
     }
     setForm((f) => ({ ...f, customer_id: customerId ?? "", new_customer_name: "", new_customer_phone: "" }));
+    setConfirm(res.data as unknown as Confirm);
     setSaved(true);
     if (isNew) navigate(`/rides/${(res.data as { id: string }).id}`, { replace: true });
   };
@@ -317,9 +327,32 @@ export default function RideForm() {
   // Free drivers first (keeps the owner on top within each group)
   const rank = (d: Driver) => {
     const k = availability.get(d.id)?.kind;
-    return (k === "free" ? 0 : k === "unknown" ? 1 : 2) * 2 + (d.is_self ? 0 : 1);
+    const declinedRank = confirm?.declined_driver_ids?.includes(d.id) ? 10 : 0;
+    return declinedRank + (k === "free" ? 0 : k === "unknown" ? 1 : 2) * 2 + (d.is_self ? 0 : 1);
   };
-  const sortedDrivers = form.ride_time ? [...drivers].sort((a, b) => rank(a) - rank(b)) : drivers;
+  const sortedDrivers = [...drivers].sort((a, b) => rank(a) - rank(b));
+  const declinedNames = (confirm?.declined_driver_ids ?? [])
+    .map((x) => drivers.find((d) => d.id === x)?.name).filter(Boolean) as string[];
+  // The confirmation state applies only to the driver that is saved on the ride
+  const confirmForDriver = confirm && driver && confirm.driver_id === driver.id ? confirm : null;
+  const responseUrl = confirmForDriver?.driver_token ? `${window.location.origin}/d/${confirmForDriver.driver_token}` : null;
+
+  const markSent = async () => {
+    if (!id || !confirmForDriver || confirmForDriver.driver_status === "confirmed") return;
+    const now = new Date().toISOString();
+    await supabase.from("rides")
+      .update({ driver_status: "sent", driver_sent_at: now, unconfirmed_alert_at: null }).eq("id", id);
+    setConfirm({ ...confirmForDriver, driver_status: "sent", driver_sent_at: now });
+  };
+
+  const markConfirmed = async () => {
+    if (!id) return;
+    const now = new Date().toISOString();
+    await supabase.from("rides").update({ driver_status: "confirmed", driver_responded_at: now }).eq("id", id);
+    if (confirm) setConfirm({ ...confirm, driver_status: "confirmed", driver_responded_at: now });
+  };
+  const timeOf = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "";
   const chosenAvail = driver ? availability.get(driver.id) : undefined;
   const freeCount = drivers.filter((d) => availability.get(d.id)?.kind === "free").length;
   const customer = customers.find((c) => c.id === form.customer_id);
@@ -339,6 +372,7 @@ export default function RideForm() {
     driver_cost: numOrNull(form.driver_cost),
     distance_km: numOrNull(form.distance_km),
     duration_min: numOrNull(form.duration_min),
+    response_url: responseUrl,
   });
 
   return (
@@ -412,7 +446,7 @@ export default function RideForm() {
           <option value="">— לא שובץ —</option>
           {sortedDrivers.map((d) => (
             <option key={d.id} value={d.id}>
-              {availLabel(availability.get(d.id))}{d.is_self ? `${d.name} (אני)` : d.name} · {d.seats} מקומות{d.car_model ? ` · ${d.car_model}` : ""}
+              {confirm?.declined_driver_ids?.includes(d.id) ? "✗ סירב · " : availLabel(availability.get(d.id))}{d.is_self ? `${d.name} (אני)` : d.name} · {d.seats} מקומות{d.car_model ? ` · ${d.car_model}` : ""}
             </option>
           ))}
         </select>
@@ -422,6 +456,29 @@ export default function RideForm() {
           {freeCount} מתוך {drivers.length} נהגים פנויים בשעה {form.ride_time.slice(0, 5)}
           {form.duration_min ? "" : " (בלי מרחק משוער מניחים נסיעה של שעה)"}
         </p>
+      )}
+      {!form.driver_id && confirm?.driver_status === "declined" && declinedNames.length > 0 && (
+        <div className="alert">✗ {declinedNames.join(", ")} לא יכול/ים לקחת את הנסיעה. בחרו נהג אחר.</div>
+      )}
+      {confirmForDriver && !driver!.is_self && form.status === "active" && (
+        <div className="row small confirm-line">
+          {confirmForDriver.driver_status === "confirmed" && <span className="ok-text">✓ {driver!.name} אישר{confirmForDriver.driver_responded_at ? ` (${timeOf(confirmForDriver.driver_responded_at)})` : ""}</span>}
+          {confirmForDriver.driver_status === "sent" && (
+            <>
+              <span>⏳ נשלח ל{driver!.name} ב-{timeOf(confirmForDriver.driver_sent_at)}, ממתין לאישור</span>
+              <button type="button" className="btn link small" onClick={markConfirmed}>אישר בטלפון</button>
+            </>
+          )}
+          {confirmForDriver.driver_status === "none" && (
+            <>
+              <span className="muted">עוד לא נשלח לנהג</span>
+              <button type="button" className="btn link small" onClick={markConfirmed}>סימון כאושר</button>
+            </>
+          )}
+        </div>
+      )}
+      {form.driver_id && confirm && confirm.driver_id !== form.driver_id && !isNew && (
+        <p className="small muted">שמרו כדי לשבץ את הנהג. אחרי השמירה יופיע כפתור שליחה עם קישור לאישור.</p>
       )}
       {chosenAvail?.kind === "busy" && (
         <div className="alert">
@@ -481,8 +538,8 @@ export default function RideForm() {
       <div className="row sticky">
         <button className="btn primary big" disabled={saving}>{saving ? "שומר…" : saved && !isNew ? "נשמר ✓" : "שמירה"}</button>
         {saved && !isNew && driver && !driver.is_self && form.status === "active" && (
-          <a className="btn whatsapp big" href={waLink(driver.phone, message)} target="_blank" rel="noreferrer">
-            שליחה ל{driver.name} בוואטסאפ
+          <a className="btn whatsapp big" href={waLink(driver.phone, message)} target="_blank" rel="noreferrer" onClick={markSent}>
+            {confirmForDriver?.driver_status === "sent" ? `שליחה שוב ל${driver.name}` : `שליחה ל${driver.name} בוואטסאפ`}
           </a>
         )}
       </div>

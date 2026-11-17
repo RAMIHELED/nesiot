@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
@@ -10,9 +10,20 @@ import MonthEnd from "./pages/MonthEnd";
 import Prices from "./pages/Prices";
 import Recurring from "./pages/Recurring";
 import Settings from "./pages/Settings";
+import DriverResponse from "./pages/DriverResponse";
 
 export default function App() {
   const { session, loading, org, signOut } = useSession();
+  const location = useLocation();
+
+  // Public page for drivers (no login): /d/<token>
+  if (location.pathname.startsWith("/d/")) {
+    return (
+      <Routes>
+        <Route path="/d/:token" element={<DriverResponse />} />
+      </Routes>
+    );
+  }
 
   if (loading) return <div className="center muted">טוען…</div>;
   if (!session) return <Login />;
