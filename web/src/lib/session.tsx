@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../supabase";
 
-type Org = { id: string; name: string; role: "owner" | "member" };
+export type Role = "owner" | "member" | "viewer" | "driver";
+type Org = { id: string; name: string; role: Role; driver_id: string | null };
 
 type Ctx = {
   session: Session | null;
@@ -38,14 +39,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     supabase
       .from("memberships")
-      .select("role, organizations(id, name)")
+      .select("role, driver_id, organizations(id, name)")
       .eq("user_id", session.user.id)
       .then(({ data, error }) => {
         if (error) console.error(error);
-        type Row = { role: "owner" | "member"; organizations: { id: string; name: string } | null };
+        type Row = { role: Role; driver_id: string | null; organizations: { id: string; name: string } | null };
         const list = ((data ?? []) as unknown as Row[])
           .filter((r) => r.organizations)
-          .map((r) => ({ id: r.organizations!.id, name: r.organizations!.name, role: r.role }));
+          .map((r) => ({ id: r.organizations!.id, name: r.organizations!.name, role: r.role, driver_id: r.driver_id ?? null }));
         setOrgs(list);
         setLoading(false);
       });
@@ -85,3 +86,16 @@ export function useOrgId(): string {
   if (!org) throw new Error("no org");
   return org.id;
 }
+
+/** owner / member can change data; viewer and driver cannot change business data */
+export function useCanEdit(): boolean {
+  const { org } = useSession();
+  return org?.role === "owner" || org?.role === "member";
+}
+
+export const ROLE_LABELS: Record<Role, string> = {
+  owner: "בעלים",
+  member: "מנהל",
+  viewer: "צפייה בלבד",
+  driver: "נהג",
+};

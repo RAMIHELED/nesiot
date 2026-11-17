@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import VoiceButton from "./VoiceButton";
 import { supabase } from "../supabase";
 import { addDays, today } from "../lib/format";
+import { useCanEdit } from "../lib/session";
 import { rangeLabel, type Absence } from "../lib/absences";
 import type { Driver } from "../types";
 
@@ -12,6 +13,7 @@ export default function Vacations({ orgId, drivers, absences, onChange, initialD
   orgId: string; drivers: Driver[]; absences: Absence[]; onChange: () => void; initialDriverId?: string;
 }) {
   const [driverId, setDriverId] = useState<string>(initialDriverId);
+  const canEdit = useCanEdit();
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [note, setNote] = useState("");
@@ -102,11 +104,11 @@ export default function Vacations({ orgId, drivers, absences, onChange, initialD
           <span>
             {isNow(a) ? "🟢 עכשיו · " : ""}<strong>{nameOf(a.driver_id)}</strong> · {rangeLabel(a)}{a.note ? ` · ${a.note}` : ""}
           </span>
-          <button type="button" className="btn link small" onClick={() => remove(a)}>מחיקה</button>
+          {canEdit && <button type="button" className="btn link small" onClick={() => remove(a)}>מחיקה</button>}
         </div>
       ))}
 
-      <form onSubmit={add} className="stack">
+      {canEdit && <form onSubmit={add} className="stack">
         <label>
           אפשר להקליט, לדוגמה: "משה בחופשה מה-20 עד ה-25, מילואים" או "כולם בחופש ביום שלישי"
           <textarea rows={2} value={voiceText} onChange={(e) => setVoiceText(e.target.value)} />
@@ -148,7 +150,7 @@ export default function Vacations({ orgId, drivers, absences, onChange, initialD
         </div>
         <input placeholder="הערה (לא חובה), למשל: מילואים, אילת" value={note} onChange={(e) => setNote(e.target.value)} />
         <button className="btn primary">הוספת חופשה</button>
-      </form>
+      </form>}
 
       {conflicts && (
         <div className="alert stack">

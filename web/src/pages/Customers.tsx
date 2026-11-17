@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "../supabase";
-import { useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId } from "../lib/session";
 import { money, today } from "../lib/format";
 import type { Customer } from "../types";
 
@@ -61,6 +61,7 @@ const shortDate = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/"
 
 export default function Customers() {
   const orgId = useOrgId();
+  const canEdit = useCanEdit();
   const [list, setList] = useState<Customer[]>([]);
   const [balances, setBalances] = useState<Map<string, Balance>>(new Map());
   const [q, setQ] = useState("");
@@ -173,14 +174,14 @@ export default function Customers() {
           return editId === c.id ? (
             <li key={c.id} className="panel stack">
               <form onSubmit={saveEdit} className="stack">
-                <CustomerFields d={edit} set={setEdit} />
+                <fieldset disabled={!canEdit} className="plain stack"><CustomerFields d={edit} set={setEdit} /></fieldset>
                 <div className="row">
-                  <button className="btn primary">שמירה</button>
+                  {canEdit && <button className="btn primary">שמירה</button>}
                   <button type="button" className="btn" onClick={() => setEditId(null)}>סגירה</button>
-                  <button type="button" className="btn danger" onClick={() => remove(c)}>מחיקה</button>
+                  {canEdit && <button type="button" className="btn danger" onClick={() => remove(c)}>מחיקה</button>}
                 </div>
               </form>
-              {balances.size > 0 && <CustomerAccount customer={c} balance={b} onChange={load} />}
+              {balances.size > 0 && <CustomerAccount customer={c} balance={b} onChange={load} canEdit={canEdit} />}
             </li>
           ) : (
             <li key={c.id} className={`card clickable ${old ? "debt-old" : ""}`} onClick={() => startEdit(c)}>
@@ -205,17 +206,17 @@ export default function Customers() {
       </ul>
       <p className="small muted">לחיצה על לקוח פותחת עריכה, יתרה ורישום תשלום. חוב = נסיעות שכבר בוצעו פחות תשלומים. חוב ותיק מ-{OLD_DEBT_DAYS} יום מסומן באדום.</p>
 
-      <form onSubmit={add} className="panel stack">
+      {canEdit && <form onSubmit={add} className="panel stack">
         <strong>לקוח חדש</strong>
         <CustomerFields d={newDraft} set={setNewDraft} />
         <button className="btn primary">הוספה</button>
-      </form>
+      </form>}
     </div>
   );
 }
 
 /** Balance, record a payment, recent payments */
-function CustomerAccount({ customer, balance, onChange }: { customer: Customer; balance?: Balance; onChange: () => void }) {
+function CustomerAccount({ customer, balance, onChange, canEdit }: { customer: Customer; balance?: Balance; onChange: () => void; canEdit: boolean }) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("transfer");
@@ -268,7 +269,7 @@ function CustomerAccount({ customer, balance, onChange }: { customer: Customer; 
         נסיעות שבוצעו {money(balance?.rides_total ?? 0)} · שולם {money(balance?.paid_total ?? 0)}
       </div>
 
-      <form onSubmit={pay} className="stack">
+      {canEdit && <form onSubmit={pay} className="stack">
         <div className="row">
           <label>סכום ₪
             <input type="number" step="0.01" min={0} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
@@ -290,7 +291,7 @@ function CustomerAccount({ customer, balance, onChange }: { customer: Customer; 
           )}
         </div>
         {msg && <p className="small">{msg}</p>}
-      </form>
+      </form>}
 
       {payments.length > 0 && (
         <div className="stack">
@@ -301,7 +302,7 @@ function CustomerAccount({ customer, balance, onChange }: { customer: Customer; 
                 {shortDate(p.paid_on)} · {money(p.amount)} · {PAYMENT_METHODS[p.method ?? "other"] ?? ""}
                 {p.ride_id ? " · במקום" : ""}{p.note ? ` · ${p.note}` : ""}
               </span>
-              <button type="button" className="btn link small" onClick={() => removePayment(p)}>מחיקה</button>
+              {canEdit && <button type="button" className="btn link small" onClick={() => removePayment(p)}>מחיקה</button>}
             </div>
           ))}
         </div>

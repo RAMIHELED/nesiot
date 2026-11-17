@@ -81,6 +81,20 @@ async function runReminders() {
         tag: `ride-${r.ride_id}`,
       });
     }
+    // The driver himself, if he has the app (opens his rides screen)
+    if (r.driver_id && !r.driver_is_self) {
+      const { data: drv } = await admin.rpc("driver_push_targets", { p_driver: r.driver_id });
+      if (drv?.length) {
+        sent += await push(drv as Target[], {
+          title: `נסיעה שלך בעוד ${r.minutes_left} דק׳ · ${hhmm(r.ride_time)}`,
+          body: [`${r.pickup ?? "?"} ← ${r.dropoff ?? "?"}`, r.customer_name,
+                 r.flight_number ? `טיסה ${r.flight_number}` : null,
+                 r.passengers ? `${r.passengers} נוסעים` : null].filter(Boolean).join(" · "),
+          url: "/",
+          tag: `my-ride-${r.ride_id}`,
+        });
+      }
+    }
     // Mark as handled even with no devices, so it is not retried every 5 minutes
     await admin.from("rides").update({ reminder_sent_at: new Date().toISOString() }).eq("id", r.ride_id);
   }

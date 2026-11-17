@@ -156,3 +156,14 @@ textarea { resize: vertical; }
 .vac-chip { font-size: 0.8rem; background: #e6f3ff; color: #0b5cad; border-radius: 6px; padding: 2px 8px; }
 .vac-chip.now { background: #0b5cad; color: #fff; font-weight: 600; }
 .vac-add { font-size: 0.8rem; color: var(--primary); text-decoration: none; padding: 2px 4px; }
+
+/* Roles */
+.tabbar.tabbar-4 { grid-template-columns: repeat(4, 1fr); }
+.readonly-banner { background: #eef2f7; color: var(--muted); text-align: center; font-size: 0.85rem; padding: 6px; border-bottom: 1px solid var(--line); }
+.role-badge { font-size: 0.75rem; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+
+fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
+fieldset.plain:disabled input, fieldset.plain:disabled select, fieldset.plain:disabled textarea { background: var(--bg); color: var(--ink); }
+.app-on { color: var(--self); }
+.inline-input { width: auto; flex: 1; padding: 4px 8px; font-size: 14px; }
+.user-row { border-top: 1px solid var(--line); padding-top: 6px; }

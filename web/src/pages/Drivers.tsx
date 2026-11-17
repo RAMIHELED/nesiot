@@ -4,7 +4,7 @@ import VoiceButton from "../components/VoiceButton";
 import { loadAbsences, rangeLabel, type Absence } from "../lib/absences";
 import { addDays, today } from "../lib/format";
 import { supabase } from "../supabase";
-import { useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId, useSession } from "../lib/session";
 import { normalizeIlMobile } from "../lib/phone";
 import type { Driver } from "../types";
 
@@ -40,6 +40,39 @@ const toRow = (d: Draft) => {
 
 export default function Drivers() {
   const orgId = useOrgId();
+  const canEdit = useCanEdit();
+  const { org } = useSession();
+  const isOwner = org?.role === "owner";
+  // Drivers who can log in to the app (owner only)
+  const [appUsers, setAppUsers] = useState<Map<string, { user_id: string; email: string | null }>>(new Map());
+  const [inviteFor, setInviteFor] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteMsg, setInviteMsg] = useState<string | null>(null);
+
+  const loadAppUsers = () => {
+    if (!isOwner) return;
+    supabase.from("memberships").select("user_id, email, driver_id").eq("org_id", orgId).eq("role", "driver")
+      .then(({ data }) => setAppUsers(new Map((data ?? []).map((m) => [m.driver_id as string, { user_id: m.user_id, email: m.email }]))));
+  };
+
+  const inviteDriver = async (d: Driver) => {
+    setInviteMsg(null);
+    const { data, error } = await supabase.functions.invoke("invite-user", {
+      body: { email: inviteEmail, org_id: orgId, role: "driver", driver_id: d.id },
+    });
+    if (error || !data?.ok) return setInviteMsg("ההזמנה נכשלה. בדקו את המייל.");
+    setInviteMsg(`${d.name} יכול להיכנס עכשיו עם ${inviteEmail}. שלחו לו את כתובת האתר.`);
+    setInviteFor(null);
+    setInviteEmail("");
+    loadAppUsers();
+  };
+
+  const revokeDriver = async (d: Driver) => {
+    const u = appUsers.get(d.id);
+    if (!u || !window.confirm(`לבטל את הגישה של ${d.name} לאפליקציה?`)) return;
+    await supabase.from("memberships").delete().eq("org_id", orgId).eq("user_id", u.user_id);
+    loadAppUsers();
+  };
   const [list, setList] = useState<Driver[]>([]);
   const [newDraft, setNewDraft] = useState<Draft>(toDraft());
   const [editId, setEditId] = useState<string | null>(null);
@@ -58,6 +91,7 @@ export default function Drivers() {
   useEffect(() => {
     load();
     loadAbs();
+    loadAppUsers();
   }, [orgId]);
 
   const vacationsOf = (driverId: string) => absences.filter((a) => a.driver_id === driverId);
@@ -155,17 +189,18 @@ export default function Drivers() {
         </div>
       )}
       {error && <p className="error">{error}</p>}
+      {inviteMsg && <p className="small">{inviteMsg}</p>}
 
       <ul className="cards">
         {list.map((d) =>
           editId === d.id ? (
             <li key={d.id}>
               <form onSubmit={saveEdit} className="panel stack">
-                <DriverFields d={edit} set={setEdit} canBeSelf={!selfTaken(d.id)} />
+                <fieldset disabled={!canEdit} className="plain stack"><DriverFields d={edit} set={setEdit} canBeSelf={!selfTaken(d.id)} /></fieldset>
                 <div className="row">
-                  <button className="btn primary">שמירה</button>
-                  <button type="button" className="btn" onClick={() => setEditId(null)}>ביטול</button>
-                  <button type="button" className="btn danger" onClick={() => remove(d)}>מחיקה</button>
+                  {canEdit && <button className="btn primary">שמירה</button>}
+                  <button type="button" className="btn" onClick={() => setEditId(null)}>{canEdit ? "ביטול" : "סגירה"}</button>
+                  {canEdit && <button type="button" className="btn danger" onClick={() => remove(d)}>מחיקה</button>}
                 </div>
               </form>
             </li>
@@ -173,9 +208,9 @@ export default function Drivers() {
             <li key={d.id} className={`card clickable ${d.active ? "" : "dim"}`} onClick={() => startEdit(d)}>
               <div className="row between">
                 <strong>{d.name}{d.is_self ? " (אני)" : ""}{d.active ? "" : " · מושבת"}</strong>
-                <button className="btn link small" onClick={(e) => { e.stopPropagation(); toggleActive(d); }}>
+                {canEdit && <button className="btn link small" onClick={(e) => { e.stopPropagation(); toggleActive(d); }}>
                   {d.active ? "השבתה" : "הפעלה"}
-                </button>
+                </button>}
               </div>
               <span className="small muted">
                 {d.phone && <span dir="ltr">{d.phone}</span>}
@@ -189,15 +224,34 @@ export default function Drivers() {
                     🏖 {isNow(a) ? "עכשיו · " : ""}{rangeLabel(a)}{a.note ? ` · ${a.note}` : ""}
                   </span>
                 ))}
-                <Link to={`/vacations?driver=${d.id}`} className="vac-add">+ חופשה</Link>
+                {canEdit && <Link to={`/vacations?driver=${d.id}`} className="vac-add">+ חופשה</Link>}
               </div>
+              {isOwner && !d.is_self && (
+                <div className="vac-row small" onClick={(e) => e.stopPropagation()}>
+                  {appUsers.has(d.id) ? (
+                    <>
+                      <span className="app-on">📱 באפליקציה · <span dir="ltr">{appUsers.get(d.id)!.email}</span></span>
+                      <button type="button" className="btn link small" onClick={() => revokeDriver(d)}>ביטול גישה</button>
+                    </>
+                  ) : inviteFor === d.id ? (
+                    <>
+                      <input type="email" dir="ltr" className="inline-input" placeholder="email@example.com"
+                        value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+                      <button type="button" className="btn small primary" disabled={!inviteEmail.includes("@")} onClick={() => inviteDriver(d)}>הזמנה</button>
+                      <button type="button" className="btn link small" onClick={() => setInviteFor(null)}>ביטול</button>
+                    </>
+                  ) : (
+                    <button type="button" className="btn link small" onClick={() => { setInviteFor(d.id); setInviteEmail(""); }}>📱 הזמנה לאפליקציה</button>
+                  )}
+                </div>
+              )}
             </li>
           ),
         )}
       </ul>
       <p className="small muted">לחיצה על נהג פותחת עריכה. נהג מושבת לא מופיע בבחירת נהג לנסיעה.</p>
 
-      <form onSubmit={add} className="panel stack">
+      {canEdit && <form onSubmit={add} className="panel stack">
         <strong>נהג חדש</strong>
         <label>
           אפשר להקליט או להדביק, לדוגמה: "משה כהן, 050-1234567, טויוטה סיינה, 7 מקומות"
@@ -225,7 +279,7 @@ export default function Drivers() {
         )}
         <DriverFields d={newDraft} set={setNewDraft} canBeSelf={!selfTaken()} />
         <button className="btn primary">הוספה</button>
-      </form>
+      </form>}
     </div>
   );
 }

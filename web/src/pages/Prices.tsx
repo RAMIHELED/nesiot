@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase } from "../supabase";
-import { useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId } from "../lib/session";
 import { money } from "../lib/format";
 import type { Customer } from "../types";
 
@@ -30,6 +30,7 @@ const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
 export default function Prices() {
   const orgId = useOrgId();
+  const canEdit = useCanEdit();
   const [rows, setRows] = useState<PriceRow[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [q, setQ] = useState("");
@@ -145,11 +146,11 @@ export default function Prices() {
           editId === r.id ? (
             <li key={r.id}>
               <form onSubmit={saveEdit} className="panel stack">
-                <PriceFields d={edit} set={setEdit} customers={customers} />
+                <fieldset disabled={!canEdit} className="plain stack"><PriceFields d={edit} set={setEdit} customers={customers} /></fieldset>
                 <div className="row">
-                  <button className="btn primary">שמירה</button>
-                  <button type="button" className="btn" onClick={() => setEditId(null)}>ביטול</button>
-                  <button type="button" className="btn danger" onClick={() => remove(r)}>מחיקה</button>
+                  {canEdit && <button className="btn primary">שמירה</button>}
+                  <button type="button" className="btn" onClick={() => setEditId(null)}>{canEdit ? "ביטול" : "סגירה"}</button>
+                  {canEdit && <button type="button" className="btn danger" onClick={() => remove(r)}>מחיקה</button>}
                 </div>
               </form>
             </li>
@@ -171,11 +172,11 @@ export default function Prices() {
       </ul>
       {rows.length > 0 && <p className="small muted">לחיצה על מסלול פותחת עריכה.</p>}
 
-      <form onSubmit={add} className="panel stack">
+      {canEdit && <form onSubmit={add} className="panel stack">
         <strong>מסלול חדש</strong>
         <PriceFields d={newDraft} set={setNewDraft} customers={customers} />
         <button className="btn primary">הוספה</button>
-      </form>
+      </form>}
     </div>
   );
 }

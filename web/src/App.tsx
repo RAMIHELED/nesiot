@@ -12,6 +12,10 @@ import Recurring from "./pages/Recurring";
 import Settings from "./pages/Settings";
 import DriverResponse from "./pages/DriverResponse";
 import VacationsPage from "./pages/VacationsPage";
+import DriverLayout from "./components/DriverLayout";
+import MyRides from "./pages/driver/MyRides";
+import MyPay from "./pages/driver/MyPay";
+import MyVacations from "./pages/driver/MyVacations";
 
 export default function App() {
   const { session, loading, org, signOut } = useSession();
@@ -34,6 +38,21 @@ export default function App() {
         <p>המשתמש עדיין לא משויך לעסק. פנו למנהל המערכת.</p>
         <button className="btn" onClick={signOut}>יציאה</button>
       </div>
+    );
+  }
+
+  // Drivers get their own small app: only their rides, payments and vacations
+  if (org.role === "driver") {
+    return (
+      <Routes>
+        <Route element={<DriverLayout />}>
+          <Route path="/" element={<MyRides />} />
+          <Route path="/pay" element={<MyPay />} />
+          <Route path="/vacations" element={<MyVacations />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
     );
   }
 

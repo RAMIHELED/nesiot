@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabase";
-import { useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId } from "../lib/session";
 import { addDays, dayLabel, money, shortTime, today } from "../lib/format";
 import { hhmm, interval } from "../lib/availability";
 import { absenceOf, allOff, loadAbsences, type Absence } from "../lib/absences";
@@ -16,6 +16,7 @@ const tagOf = (r: RideWithNames): Tag =>
 
 export default function Calendar() {
   const orgId = useOrgId();
+  const canEdit = useCanEdit();
   const [start, setStart] = useState(today());
   const [range, setRange] = useState<Range>("day");
   const [filter, setFilter] = useState<Filter>("all");
@@ -80,7 +81,7 @@ export default function Calendar() {
   return (
     <div className="stack">
       <div className="row">
-        <Link to="/rides/new" className="btn primary big">+ נסיעה חדשה</Link>
+        {canEdit && <Link to="/rides/new" className="btn primary big">+ נסיעה חדשה</Link>}
         <Link to="/recurring" className="btn">🔁 קבועות</Link>
       </div>
 

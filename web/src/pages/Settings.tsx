@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../supabase";
 import { useSession } from "../lib/session";
+import UsersPanel from "../components/UsersPanel";
+import { ROLE_LABELS } from "../lib/session";
 import { disablePush, enablePush, getPushState, sendTestPush, type PushState } from "../lib/push";
 
 const pushText: Record<PushState, string> = {
@@ -14,9 +16,6 @@ const pushText: Record<PushState, string> = {
 
 export default function Settings() {
   const { session, org, orgs, setOrgId, signOut } = useSession();
-  const [email, setEmail] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const [push, setPush] = useState<PushState | null>(null);
   const [pushMsg, setPushMsg] = useState<string | null>(null);
@@ -25,7 +24,12 @@ export default function Settings() {
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    getPushState().then(setPush).catch(() => setPush("unsupported"));
+    const check = () => getPushState().then(setPush).catch(() => setPush("unsupported"));
+    check();
+    // Re-check when coming back from the phone / browser settings
+    const onVisible = () => { if (document.visibilityState === "visible") check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   useEffect(() => {
@@ -39,18 +43,6 @@ export default function Settings() {
       });
   }, [org]);
 
-  const invite = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!org) return;
-    setBusy(true);
-    setMsg(null);
-    const { error } = await supabase.functions.invoke("invite-user", {
-      body: { email, org_id: org.id, role: "member" },
-    });
-    setBusy(false);
-    setMsg(error ? "ההזמנה נכשלה" : `${email} יכול/ה עכשיו להיכנס עם קוד במייל`);
-    if (!error) setEmail("");
-  };
 
   const [pushBusy, setPushBusy] = useState(false);
   const togglePush = async () => {
@@ -95,6 +87,7 @@ export default function Settings() {
       <div className="card">
         <div className="small muted">מחובר/ת כ</div>
         <div dir="ltr">{session?.user.email}</div>
+        {org && <div className="small muted">{org.name} · {ROLE_LABELS[org.role]}</div>}
       </div>
 
       {orgs.length > 1 && (
@@ -139,15 +132,7 @@ export default function Settings() {
         )}
       </div>
 
-      {org?.role === "owner" && (
-        <form onSubmit={invite} className="panel stack">
-          <strong>הוספת משתמש לעסק</strong>
-          <input type="email" dir="ltr" required placeholder="email@example.com"
-            value={email} onChange={(e) => setEmail(e.target.value)} />
-          <button className="btn primary" disabled={busy}>הוספה</button>
-          {msg && <p className="small">{msg}</p>}
-        </form>
-      )}
+      {org?.role === "owner" && <UsersPanel />}
 
       <button className="btn" onClick={signOut}>יציאה</button>
     </div>

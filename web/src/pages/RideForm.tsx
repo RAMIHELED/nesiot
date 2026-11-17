@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabase";
-import { useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId } from "../lib/session";
 import { money, today } from "../lib/format";
 import { rideMessage, waLink } from "../lib/whatsapp";
 import { driverAvailability, hhmm, interval, type Availability, type TimedRide } from "../lib/availability";
@@ -56,6 +56,7 @@ const strOrNull = (s: string) => (s.trim() === "" ? null : s.trim());
 export default function RideForm() {
   const { id } = useParams();
   const isNew = !id;
+  const canEdit = useCanEdit();
   const orgId = useOrgId();
   const navigate = useNavigate();
 
@@ -405,17 +406,20 @@ export default function RideForm() {
     response_url: responseUrl,
   });
 
+  if (isNew && !canEdit) return <Navigate to="/" replace />;
+
   return (
     <form onSubmit={save} className="stack">
       <h2>{isNew ? "נסיעה חדשה" : "פרטי נסיעה"}</h2>
       {!isNew && recurringId && (
         <p className="small">🔁 נסיעה קבועה. שינוי כאן משנה רק את התאריך הזה. <Link to={`/recurring?edit=${recurringId}`}>עריכת הנסיעה הקבועה</Link></p>
       )}
-      {!isNew && !recurringId && saved && (
+      {!isNew && !recurringId && saved && canEdit && (
         <p className="small"><Link to={`/recurring?from=${id}`}>🔁 הפיכה לנסיעה קבועה</Link></p>
       )}
 
-      <div className="panel stack">
+      <fieldset disabled={!canEdit} className="plain stack">
+      {canEdit && (<div className="panel stack">
         <label>
           הדביקו הודעה מוואטסאפ / מייל, או הקליטו
           <textarea rows={4} value={source} onChange={(e) => setSource(e.target.value)}
@@ -441,7 +445,7 @@ export default function RideForm() {
             <div className="small">אין צורך להקליט מההתחלה: לחצו "הוספה בהקלטה" ואמרו רק את מה שחסר.</div>
           </div>
         )}
-      </div>
+      </div>)}
 
       <label>
         לקוח
@@ -587,16 +591,18 @@ export default function RideForm() {
         </label>
       )}
 
+      </fieldset>
+
       {error && <p className="error">{error}</p>}
 
-      <div className="row sticky">
+      {canEdit && <div className="row sticky">
         <button className="btn primary big" disabled={saving}>{saving ? "שומר…" : saved && !isNew ? "נשמר ✓" : "שמירה"}</button>
         {saved && !isNew && driver && !driver.is_self && form.status === "active" && (
           <a className="btn whatsapp big" href={waLink(driver.phone, message)} target="_blank" rel="noreferrer" onClick={markSent}>
             {confirmForDriver?.driver_status === "sent" ? `שליחה שוב ל${driver.name}` : `שליחה ל${driver.name} בוואטסאפ`}
           </a>
         )}
-      </div>
+      </div>}
     </form>
   );
 }

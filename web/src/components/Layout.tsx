@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useSession } from "../lib/session";
+import { ROLE_LABELS, useSession } from "../lib/session";
 
 export default function Layout() {
   const { org } = useSession();
@@ -9,6 +9,7 @@ export default function Layout() {
         <span className="brand">נסיעות</span>
         <span className="muted small">{org?.name}</span>
       </header>
+      {org?.role === "viewer" && <div className="readonly-banner">👁 {ROLE_LABELS.viewer}: אפשר לראות הכל, בלי לשנות</div>}
       <main className="content">
         <Outlet />
       </main>

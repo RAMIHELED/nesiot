@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
-import { useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId } from "../lib/session";
 import { money, monthRange, shortTime, today } from "../lib/format";
 import type { RideWithNames } from "../types";
 
@@ -8,6 +8,7 @@ type Tab = "customers" | "drivers" | "profit";
 
 export default function MonthEnd() {
   const orgId = useOrgId();
+  const canEdit = useCanEdit();
   const [month, setMonth] = useState(today().slice(0, 7));
   const [tab, setTab] = useState<Tab>("customers");
   const [rides, setRides] = useState<RideWithNames[]>([]);
@@ -97,7 +98,7 @@ export default function MonthEnd() {
             </div>
             <div className="row between small">
               <span className="muted">{g.rides.length} נסיעות · {open.length} לא חויבו ({money(sum(open, (r) => r.price))})</span>
-              {open.length > 0 && <button className="btn small" onClick={() => markBilled(open.map((r) => r.id))}>סמן כחויב</button>}
+              {open.length > 0 && canEdit && <button className="btn small" onClick={() => markBilled(open.map((r) => r.id))}>סמן כחויב</button>}
             </div>
           </div>
         );
@@ -113,7 +114,7 @@ export default function MonthEnd() {
             </div>
             <div className="row between small">
               <span className="muted">{g.rides.length} נסיעות · {open.length} לא שולמו ({money(sum(open, (r) => r.driver_cost))})</span>
-              {open.length > 0 && <button className="btn small" onClick={() => markPaid(open.map((r) => r.id))}>סמן כשולם</button>}
+              {open.length > 0 && canEdit && <button className="btn small" onClick={() => markPaid(open.map((r) => r.id))}>סמן כשולם</button>}
             </div>
           </div>
         );

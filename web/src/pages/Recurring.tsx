@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
-import { useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId } from "../lib/session";
 import { money, today } from "../lib/format";
 import type { Customer, Driver, Ride } from "../types";
 
@@ -83,6 +83,7 @@ export function daysLabel(days: number[]) {
 
 export default function Recurring() {
   const orgId = useOrgId();
+  const canEdit = useCanEdit();
   const [params, setParams] = useSearchParams();
   const [list, setList] = useState<RecurringRide[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -267,14 +268,14 @@ export default function Recurring() {
           editId === t.id ? (
             <li key={t.id}>
               <form onSubmit={saveEdit} className="panel stack">
-                <TemplateFields d={edit} set={setEdit} customers={customers} drivers={drivers} />
+                <fieldset disabled={!canEdit} className="plain stack"><TemplateFields d={edit} set={setEdit} customers={customers} drivers={drivers} /></fieldset>
                 <p className="small muted">שמירה תבנה מחדש את הנסיעות של התבנית ממחר והלאה. שינויים שעשיתם בנסיעה בודדת עתידית יוחלפו.</p>
                 <div className="row">
-                  <button className="btn primary" disabled={busy}>{busy ? "שומר…" : "שמירה"}</button>
+                  {canEdit && <button className="btn primary" disabled={busy}>{busy ? "שומר…" : "שמירה"}</button>}
                   <button type="button" className="btn" onClick={() => setEditId(null)}>ביטול</button>
-                  {t.active
+                  {canEdit && (t.active
                     ? <button type="button" className="btn danger" onClick={() => stop(t)}>הפסקה</button>
-                    : <button type="button" className="btn danger" onClick={() => remove(t)}>מחיקה</button>}
+                    : <button type="button" className="btn danger" onClick={() => remove(t)}>מחיקה</button>)}
                 </div>
               </form>
             </li>
@@ -294,7 +295,7 @@ export default function Recurring() {
                 </span>
                 <span>{money(t.price)}</span>
               </div>
-              {!t.active && (
+              {!t.active && canEdit && (
                 <button className="btn small" onClick={(e) => { e.stopPropagation(); resume(t); }}>הפעלה מחדש</button>
               )}
             </li>
@@ -302,11 +303,11 @@ export default function Recurring() {
         )}
       </ul>
 
-      <form onSubmit={add} className="panel stack">
+      {canEdit && <form onSubmit={add} className="panel stack">
         <strong>נסיעה קבועה חדשה</strong>
         <TemplateFields d={newDraft} set={setNewDraft} customers={customers} drivers={drivers} />
         <button className="btn primary" disabled={busy}>{busy ? "שומר…" : "שמירה ויצירת נסיעות"}</button>
-      </form>
+      </form>}
     </div>
   );
 }
