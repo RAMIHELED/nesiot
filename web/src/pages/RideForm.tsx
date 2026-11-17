@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useOrgId } from "../lib/session";
 import { money, today } from "../lib/format";
@@ -76,6 +76,7 @@ export default function RideForm() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(!isNew);
+  const [recurringId, setRecurringId] = useState<string | null>(null);
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
     setForm((f) => ({ ...f, [k]: v }));
@@ -122,6 +123,7 @@ export default function RideForm() {
         status: r.status,
       });
       setSource(r.source_text ?? "");
+      setRecurringId(r.recurring_id ?? null);
       setMeasuredRoute(r.distance_km != null ? routeKey(r.pickup ?? "", r.dropoff ?? "") : null);
       setSaved(true);
     });
@@ -342,6 +344,12 @@ export default function RideForm() {
   return (
     <form onSubmit={save} className="stack">
       <h2>{isNew ? "נסיעה חדשה" : "פרטי נסיעה"}</h2>
+      {!isNew && recurringId && (
+        <p className="small">🔁 נסיעה קבועה. שינוי כאן משנה רק את התאריך הזה. <Link to={`/recurring?edit=${recurringId}`}>עריכת הנסיעה הקבועה</Link></p>
+      )}
+      {!isNew && !recurringId && saved && (
+        <p className="small"><Link to={`/recurring?from=${id}`}>🔁 הפיכה לנסיעה קבועה</Link></p>
+      )}
 
       <div className="panel stack">
         <label>

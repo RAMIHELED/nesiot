@@ -70,7 +70,10 @@ export default function Calendar() {
 
   return (
     <div className="stack">
-      <Link to="/rides/new" className="btn primary big">+ נסיעה חדשה</Link>
+      <div className="row">
+        <Link to="/rides/new" className="btn primary big">+ נסיעה חדשה</Link>
+        <Link to="/recurring" className="btn">🔁 קבועות</Link>
+      </div>
 
       <div className="row between">
         <button className="btn" onClick={() => setStart(addDays(start, -step))}>→</button>
@@ -118,7 +121,7 @@ export default function Calendar() {
                 <li key={r.id}>
                   <Link to={`/rides/${r.id}`} className={`card tag-${tag}`}>
                     <div className="row between">
-                      <strong>{shortTime(r.ride_time) || "--:--"}</strong>
+                      <strong>{shortTime(r.ride_time) || "--:--"}{r.recurring_id ? " 🔁" : ""}</strong>
                       <span className={`badge badge-${tag}`}>
                         {tag === "cancelled" ? "בוטלה" : tag === "unassigned" ? "⚠️ לא שובץ"
                           : tag === "self" ? "אני" : r.driver!.name}

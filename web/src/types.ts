@@ -40,6 +40,7 @@ export type Ride = {
   source_text: string | null;
   distance_km: number | null;
   duration_min: number | null;
+  recurring_id: string | null;
 };
 
 export type RideWithNames = Ride & {

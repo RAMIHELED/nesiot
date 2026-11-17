@@ -8,6 +8,7 @@ import Customers from "./pages/Customers";
 import Drivers from "./pages/Drivers";
 import MonthEnd from "./pages/MonthEnd";
 import Prices from "./pages/Prices";
+import Recurring from "./pages/Recurring";
 import Settings from "./pages/Settings";
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/customers" element={<Customers />} />
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/prices" element={<Prices />} />
+        <Route path="/recurring" element={<Recurring />} />
         <Route path="/month" element={<MonthEnd />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

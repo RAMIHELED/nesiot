@@ -122,3 +122,8 @@ textarea { resize: vertical; }
 .slots { display: flex; gap: 6px; flex-wrap: wrap; }
 .slot { font-size: 0.8rem; background: #f3eefc; color: var(--contractor); border-radius: 6px; padding: 2px 8px; text-decoration: none; direction: ltr; }
 .free-label { color: var(--self); font-weight: 600; }
+
+/* Recurring rides: weekday picker */
+.weekdays { display: flex; gap: 6px; }
+.daybtn { font: inherit; flex: 1; padding: 10px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); cursor: pointer; }
+.daybtn.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
