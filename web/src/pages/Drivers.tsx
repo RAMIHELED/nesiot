@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import VoiceButton from "../components/VoiceButton";
+import Vacations from "../components/Vacations";
+import { absenceOf, loadAbsences, rangeLabel, type Absence } from "../lib/absences";
+import { addDays, today } from "../lib/format";
 import { supabase } from "../supabase";
 import { useOrgId } from "../lib/session";
 import { normalizeIlMobile } from "../lib/phone";
@@ -42,15 +45,28 @@ export default function Drivers() {
   const [editId, setEditId] = useState<string | null>(null);
   const [edit, setEdit] = useState<Draft>(toDraft());
   const [error, setError] = useState<string | null>(null);
+  const [absences, setAbsences] = useState<Absence[]>([]);
 
   const load = () =>
     supabase.from("drivers").select("*").eq("org_id", orgId)
       .order("is_self", { ascending: false }).order("name")
       .then(({ data }) => setList((data ?? []) as Driver[]));
 
+  // Current and future vacations (up to a year ahead)
+  const loadAbs = () => loadAbsences(orgId, today(), addDays(today(), 365)).then(setAbsences);
+
   useEffect(() => {
     load();
+    loadAbs();
   }, [orgId]);
+
+  // Vacation now, or the next one, for the badge on the driver card
+  const vacationBadge = (driverId: string) => {
+    const now = absenceOf(driverId, today(), absences);
+    if (now) return `🏖 בחופשה עד ${rangeLabel({ ...now, start_date: now.end_date })}`;
+    const next = absences.find((a) => a.driver_id === driverId);
+    return next ? `🏖 חופשה ${rangeLabel(next)}` : null;
+  };
 
   const selfTaken = (exceptId?: string) => list.some((d) => d.is_self && d.id !== exceptId);
 
@@ -153,6 +169,7 @@ export default function Drivers() {
             <li key={d.id} className={`card clickable ${d.active ? "" : "dim"}`} onClick={() => startEdit(d)}>
               <div className="row between">
                 <strong>{d.name}{d.is_self ? " (אני)" : ""}{d.active ? "" : " · מושבת"}</strong>
+                {vacationBadge(d.id) && <span className="badge badge-vacation">{vacationBadge(d.id)}</span>}
                 <button className="btn link small" onClick={(e) => { e.stopPropagation(); toggleActive(d); }}>
                   {d.active ? "השבתה" : "הפעלה"}
                 </button>
@@ -168,6 +185,8 @@ export default function Drivers() {
         )}
       </ul>
       <p className="small muted">לחיצה על נהג פותחת עריכה. נהג מושבת לא מופיע בבחירת נהג לנסיעה.</p>
+
+      <Vacations orgId={orgId} drivers={list.filter((d) => d.active)} absences={absences} onChange={loadAbs} />
 
       <form onSubmit={add} className="panel stack">
         <strong>נהג חדש</strong>

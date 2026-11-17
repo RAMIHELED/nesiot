@@ -147,3 +147,7 @@ textarea { resize: vertical; }
 .account { border-top: 1px solid var(--line); padding-top: 12px; }
 .paid-line { flex-wrap: wrap; }
 .inline-select { width: auto; padding: 4px 8px; }
+
+/* Vacations */
+.badge-vacation { background: #e6f3ff; color: #0b5cad; }
+.vacation-label { color: #0b5cad; font-weight: 600; }

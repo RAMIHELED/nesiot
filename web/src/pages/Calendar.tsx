@@ -4,6 +4,7 @@ import { supabase } from "../supabase";
 import { useOrgId } from "../lib/session";
 import { addDays, dayLabel, money, shortTime, today } from "../lib/format";
 import { hhmm, interval } from "../lib/availability";
+import { absenceOf, allOff, loadAbsences, type Absence } from "../lib/absences";
 import type { Driver, RideWithNames } from "../types";
 
 type Range = "day" | "week";
@@ -20,6 +21,7 @@ export default function Calendar() {
   const [filter, setFilter] = useState<Filter>("all");
   const [rides, setRides] = useState<RideWithNames[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [absences, setAbsences] = useState<Absence[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +42,7 @@ export default function Calendar() {
         setRides((data ?? []) as RideWithNames[]);
         setLoading(false);
       });
+    loadAbsences(orgId, start, end).then(setAbsences);
   }, [orgId, start, end]);
 
   useEffect(() => {
@@ -92,6 +95,9 @@ export default function Calendar() {
       </div>
 
       {range === "day" && <h3 className="day">{dayLabel(start)}</h3>}
+      {range === "day" && allOff(start, absences) && (
+        <div className="alert">🏖 כל הנהגים בחופשה היום{allOff(start, absences)!.note ? ` (${allOff(start, absences)!.note})` : ""}</div>
+      )}
 
       {/* Summary + filter */}
       <div className="summary">
@@ -161,18 +167,21 @@ export default function Calendar() {
         </section>
       ))}
 
-      {range === "day" && drivers.length > 0 && <DriversDay drivers={drivers} rides={active} />}
+      {range === "day" && drivers.length > 0 && <DriversDay drivers={drivers} rides={active} date={start} absences={absences} />}
     </div>
   );
 }
 
 /** Who drives what today, and who is free */
-function DriversDay({ drivers, rides }: { drivers: Driver[]; rides: RideWithNames[] }) {
+function DriversDay({ drivers, rides, date, absences }: {
+  drivers: Driver[]; rides: RideWithNames[]; date: string; absences: Absence[];
+}) {
   const rows = drivers.map((d) => {
     const mine = rides.filter((r) => r.driver_id === d.id);
-    return { d, mine };
+    return { d, mine, away: absenceOf(d.id, date, absences) };
   });
-  const free = rows.filter((x) => x.mine.length === 0);
+  const onVacation = rows.filter((x) => x.away && x.mine.length === 0);
+  const free = rows.filter((x) => x.mine.length === 0 && !x.away);
   const busy = rows.filter((x) => x.mine.length > 0);
 
   return (
@@ -180,7 +189,7 @@ function DriversDay({ drivers, rides }: { drivers: Driver[]; rides: RideWithName
       <strong>נהגים ביום הזה</strong>
       {busy.map(({ d, mine }) => (
         <div key={d.id} className="driver-row">
-          <span className="driver-name">{d.is_self ? `${d.name} (אני)` : d.name}</span>
+          <span className="driver-name">{d.is_self ? `${d.name} (אני)` : d.name}{absenceOf(d.id, date, absences) ? " ⚠️🏖" : ""}</span>
           <span className="slots">
             {mine.map((r) => {
               const iv = interval(r);
@@ -193,6 +202,11 @@ function DriversDay({ drivers, rides }: { drivers: Driver[]; rides: RideWithName
           </span>
         </div>
       ))}
+      {onVacation.length > 0 && (
+        <div className="small">
+          <span className="vacation-label">🏖 בחופשה:</span> {onVacation.map((x) => x.d.name).join(", ")}
+        </div>
+      )}
       {free.length > 0 && (
         <div className="small">
           <span className="free-label">פנויים כל היום:</span> {free.map((x) => x.d.name).join(", ")}

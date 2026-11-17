@@ -7,6 +7,7 @@ import { rideMessage, waLink } from "../lib/whatsapp";
 import { driverAvailability, hhmm, interval, type Availability, type TimedRide } from "../lib/availability";
 import VoiceButton from "../components/VoiceButton";
 import { PAYMENT_METHODS } from "./Customers";
+import { absenceOf, allOff, loadAbsences, rangeLabel, type Absence } from "../lib/absences";
 import type { Customer, Driver, ParsedRide, Ride } from "../types";
 
 type Form = {
@@ -64,6 +65,8 @@ export default function RideForm() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   // Other rides on the same date, to know which driver is free
   const [dayRides, setDayRides] = useState<TimedRide[]>([]);
+  // Vacations on the ride date
+  const [dayAbsences, setDayAbsences] = useState<Absence[]>([]);
   const [parsing, setParsing] = useState(false);
   const [missing, setMissing] = useState<string[]>([]);
   const [hint, setHint] = useState<string | null>(null);
@@ -149,6 +152,7 @@ export default function RideForm() {
       .select("id, driver_id, ride_date, ride_time, duration_min, pickup, dropoff, status")
       .eq("org_id", orgId).eq("ride_date", form.ride_date).eq("status", "active").not("driver_id", "is", null)
       .then(({ data }) => setDayRides((data ?? []) as TimedRide[]));
+    loadAbsences(orgId, form.ride_date, form.ride_date).then(setDayAbsences);
   }, [orgId, form.ride_date]);
 
   // Price memory: suggest price + subcontractor cost for customer & route
@@ -349,7 +353,8 @@ export default function RideForm() {
   // Free drivers first (keeps the owner on top within each group)
   const rank = (d: Driver) => {
     const k = availability.get(d.id)?.kind;
-    const declinedRank = confirm?.declined_driver_ids?.includes(d.id) ? 10 : 0;
+    const declinedRank = confirm?.declined_driver_ids?.includes(d.id) ? 10
+      : absenceOf(d.id, form.ride_date, dayAbsences) ? 20 : 0;
     return declinedRank + (k === "free" ? 0 : k === "unknown" ? 1 : 2) * 2 + (d.is_self ? 0 : 1);
   };
   const sortedDrivers = [...drivers].sort((a, b) => rank(a) - rank(b));
@@ -376,7 +381,10 @@ export default function RideForm() {
   const timeOf = (iso: string | null) =>
     iso ? new Date(iso).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "";
   const chosenAvail = driver ? availability.get(driver.id) : undefined;
-  const freeCount = drivers.filter((d) => availability.get(d.id)?.kind === "free").length;
+  const onVacation = (d: Driver) => absenceOf(d.id, form.ride_date, dayAbsences);
+  const chosenVacation = driver ? onVacation(driver) : null;
+  const everyoneOff = allOff(form.ride_date, dayAbsences);
+  const freeCount = drivers.filter((d) => availability.get(d.id)?.kind === "free" && !onVacation(d)).length;
   const customer = customers.find((c) => c.id === form.customer_id);
   const profit = form.price && driver && !driver.is_self
     ? Number(form.price) - Number(form.driver_cost || 0) : null;
@@ -468,7 +476,7 @@ export default function RideForm() {
           <option value="">— לא שובץ —</option>
           {sortedDrivers.map((d) => (
             <option key={d.id} value={d.id}>
-              {confirm?.declined_driver_ids?.includes(d.id) ? "✗ סירב · " : availLabel(availability.get(d.id))}{d.is_self ? `${d.name} (אני)` : d.name} · {d.seats} מקומות{d.car_model ? ` · ${d.car_model}` : ""}
+              {confirm?.declined_driver_ids?.includes(d.id) ? "✗ סירב · " : onVacation(d) ? "🏖 בחופשה · " : availLabel(availability.get(d.id))}{d.is_self ? `${d.name} (אני)` : d.name} · {d.seats} מקומות{d.car_model ? ` · ${d.car_model}` : ""}
             </option>
           ))}
         </select>
@@ -501,6 +509,12 @@ export default function RideForm() {
       )}
       {form.driver_id && confirm && confirm.driver_id !== form.driver_id && !isNew && (
         <p className="small muted">שמרו כדי לשבץ את הנהג. אחרי השמירה יופיע כפתור שליחה עם קישור לאישור.</p>
+      )}
+      {everyoneOff && (
+        <div className="alert">🏖 כל הנהגים בחופשה בתאריך הזה{everyoneOff.note ? ` (${everyoneOff.note})` : ""}.</div>
+      )}
+      {chosenVacation && !everyoneOff && (
+        <div className="alert">🏖 {driver!.name} בחופשה ב-{rangeLabel(chosenVacation)}{chosenVacation.note ? ` (${chosenVacation.note})` : ""}.</div>
       )}
       {chosenAvail?.kind === "busy" && (
         <div className="alert">
