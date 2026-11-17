@@ -52,12 +52,18 @@ export default function Settings() {
     if (!error) setEmail("");
   };
 
+  const [pushBusy, setPushBusy] = useState(false);
   const togglePush = async () => {
     setPushMsg(null);
+    setPushBusy(true);
     try {
-      setPush(push === "on" ? await disablePush() : await enablePush());
+      const next = push === "on" ? await disablePush() : await enablePush();
+      setPush(next);
+      if (next === "on") setPushMsg("ההתראות הופעלו ✓ עכשיו אפשר לשלוח בדיקה.");
     } catch (err) {
       setPushMsg(`שגיאה: ${(err as Error).message}`);
+    } finally {
+      setPushBusy(false);
     }
   };
 
@@ -65,7 +71,11 @@ export default function Settings() {
     setPushMsg(null);
     try {
       const r = await sendTestPush();
-      setPushMsg(r.sent > 0 ? "נשלחה התראת בדיקה" : "לא נמצא מכשיר רשום. הפעילו התראות קודם.");
+      setPushMsg(
+        r.sent > 0 ? `נשלחה התראת בדיקה (${r.sent} מכשירים)`
+          : r.devices === 0 ? "לא נמצא מכשיר רשום. כבו והפעילו שוב את ההתראות."
+            : `המכשיר רשום (${r.devices}) אבל השליחה נכשלה. כנראה מפתח ה-VAPID בשרת לא תואם למפתח באתר.`,
+      );
     } catch (err) {
       setPushMsg(`שגיאה: ${(err as Error).message}`);
     }
@@ -101,8 +111,8 @@ export default function Settings() {
         <p className="small">{push ? pushText[push] : "בודק…"}</p>
         {(push === "on" || push === "off") && (
           <div className="row">
-            <button className={`btn ${push === "on" ? "" : "primary"}`} onClick={togglePush}>
-              {push === "on" ? "כיבוי התראות במכשיר הזה" : "הפעלת התראות במכשיר הזה"}
+            <button className={`btn ${push === "on" ? "" : "primary"}`} onClick={togglePush} disabled={pushBusy}>
+              {pushBusy ? "רגע…" : push === "on" ? "כיבוי התראות במכשיר הזה" : "הפעלת התראות במכשיר הזה"}
             </button>
             {push === "on" && <button className="btn" onClick={test}>שליחת בדיקה</button>}
           </div>

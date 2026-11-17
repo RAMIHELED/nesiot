@@ -6,6 +6,7 @@ import { money, today } from "../lib/format";
 import { rideMessage, waLink } from "../lib/whatsapp";
 import { driverAvailability, hhmm, interval, type Availability, type TimedRide } from "../lib/availability";
 import VoiceButton from "../components/VoiceButton";
+import { PAYMENT_METHODS } from "./Customers";
 import type { Customer, Driver, ParsedRide, Ride } from "../types";
 
 type Form = {
@@ -77,6 +78,9 @@ export default function RideForm() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(!isNew);
   const [recurringId, setRecurringId] = useState<string | null>(null);
+  // "Paid on the spot" payment for this ride, if any
+  const [ridePayment, setRidePayment] = useState<{ id: string; method: string | null; amount: number } | null>(null);
+  const [payMethod, setPayMethod] = useState("cash");
   // Driver confirmation (as saved in the database)
   type Confirm = Pick<Ride, "driver_id" | "driver_status" | "driver_token" | "driver_sent_at" | "driver_responded_at" | "declined_driver_ids">;
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -127,6 +131,8 @@ export default function RideForm() {
       });
       setSource(r.source_text ?? "");
       setRecurringId(r.recurring_id ?? null);
+      supabase.from("customer_payments").select("id, method, amount").eq("ride_id", r.id).maybeSingle()
+        .then(({ data }) => setRidePayment(data ? { ...data, amount: Number(data.amount) } : null));
       setConfirm({
         driver_id: r.driver_id, driver_status: r.driver_status ?? "none", driver_token: r.driver_token,
         driver_sent_at: r.driver_sent_at, driver_responded_at: r.driver_responded_at,
@@ -221,6 +227,22 @@ export default function RideForm() {
       ? await supabase.from("price_list").update(row).eq("id", same.id)
       : await supabase.from("price_list").insert({ org_id: orgId, ...row });
     setPriceListMsg(error ? `שגיאה: ${error.message}` : same ? "עודכן במחירון ✓" : "נשמר במחירון ✓");
+  };
+
+  const markPaid = async () => {
+    if (!id || !form.customer_id || !form.price) return;
+    const { data, error } = await supabase.from("customer_payments").insert({
+      org_id: orgId, customer_id: form.customer_id, ride_id: id, amount: Number(form.price), method: payMethod,
+      paid_on: form.ride_date <= today() ? form.ride_date : today(),
+    }).select("id, method, amount").single();
+    if (error) return setError(error.message);
+    setRidePayment({ ...data, amount: Number(data.amount) });
+  };
+
+  const unmarkPaid = async () => {
+    if (!ridePayment) return;
+    await supabase.from("customer_payments").delete().eq("id", ridePayment.id);
+    setRidePayment(null);
   };
 
   const parse = async (textOverride?: string) => {
@@ -496,6 +518,24 @@ export default function RideForm() {
         )}
       </div>
       {hint && <p className="small muted">💡 {hint}</p>}
+      {!isNew && saved && form.customer_id && form.price && form.status === "active" && (
+        <div className="row small paid-line">
+          {ridePayment ? (
+            <>
+              <span className="ok-text">✓ שולם במקום ({PAYMENT_METHODS[ridePayment.method ?? "other"]}, {money(ridePayment.amount)})</span>
+              <button type="button" className="btn link small" onClick={unmarkPaid}>ביטול</button>
+            </>
+          ) : (
+            <>
+              <span className="muted">תשלום:</span>
+              <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="inline-select">
+                {Object.entries(PAYMENT_METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+              <button type="button" className="btn small" onClick={markPaid}>✓ שולם במקום</button>
+            </>
+          )}
+        </div>
+      )}
       {form.pickup.trim() && form.dropoff.trim() && (form.price || form.driver_cost) && (
         <div className="row small">
           <button type="button" className="btn link small" onClick={saveToPriceList}>

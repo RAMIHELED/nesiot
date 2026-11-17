@@ -136,3 +136,14 @@ textarea { resize: vertical; }
 .btn.danger-solid { background: var(--card); color: var(--danger); border-color: var(--danger); }
 .driver-page { max-width: 480px; margin: 0 auto; padding: 24px 16px; }
 .driver-page .big-line { font-size: 1.1rem; font-weight: 600; }
+
+/* Customer debt */
+.debt-summary { display: flex; justify-content: space-between; align-items: end; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.debt-total { font-size: 1.4rem; font-weight: 700; color: var(--danger); }
+.badge-debt { background: #fff1e0; color: #9a4b00; font-weight: 600; }
+.badge-debt-old { background: var(--danger); color: #fff; font-weight: 600; }
+.card.debt-old { border-inline-start-color: var(--danger); }
+.debt-text { color: var(--danger); font-weight: 600; }
+.account { border-top: 1px solid var(--line); padding-top: 12px; }
+.paid-line { flex-wrap: wrap; }
+.inline-select { width: auto; padding: 4px 8px; }

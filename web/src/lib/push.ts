@@ -37,17 +37,31 @@ export async function getPushState(): Promise<PushState> {
   return sub ? "on" : "off";
 }
 
-export async function enablePush(): Promise<PushState> {
-  const permission = await Notification.requestPermission();
-  if (permission !== "granted") return permission === "denied" ? "denied" : "off";
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms))]);
+}
 
-  const reg = await navigator.serviceWorker.ready;
+export async function enablePush(): Promise<PushState> {
+  const permission = Notification.permission === "granted"
+    ? "granted"
+    : await Notification.requestPermission();
+  if (permission === "denied") return "denied";
+  if (permission !== "granted") {
+    throw new Error("ההרשאה לא אושרה. ייתכן שכרום הסתיר את הבקשה: חפשו סמל פעמון בשורת הכתובת, או אשרו התראות בהגדרות האתר.");
+  }
+
+  // The service worker receives the notifications; make sure it is registered and running
+  if (!(await navigator.serviceWorker.getRegistration())) {
+    await navigator.serviceWorker.register("/sw.js");
+  }
+  const reg = await withTimeout(navigator.serviceWorker.ready, 10000,
+    "שירות ההתראות לא נטען. סגרו את הלשונית, פתחו את האתר מחדש ונסו שוב.");
   const sub =
     (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({
+    (await withTimeout(reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY!),
-    }));
+    }), 15000, "הרישום לשירות ההתראות של כרום לא הסתיים. בדקו חיבור לאינטרנט ונסו שוב."));
 
   const json = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
   const { error } = await supabase.from("push_subscriptions").upsert(
