@@ -99,3 +99,9 @@ export const ROLE_LABELS: Record<Role, string> = {
   viewer: "צפייה בלבד",
   driver: "נהג",
 };
+
+/** Businesses where the logged-in user is a driver */
+export function useDriverOrgs() {
+  const { orgs } = useSession();
+  return orgs.filter((o) => o.role === "driver");
+}

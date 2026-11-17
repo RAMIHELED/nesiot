@@ -1,23 +1,29 @@
 import { useEffect, useState } from "react";
-import { useOrgId } from "../../lib/session";
+import { useDriverOrgs } from "../../lib/session";
 import { money, monthRange, today } from "../../lib/format";
-import { loadMyRides, type MyRide } from "../../lib/myRides";
+import { loadMyRidesAll, type MyRide } from "../../lib/myRides";
 
 export default function MyPay() {
-  const orgId = useOrgId();
+  const multi = useDriverOrgs().length > 1;
   const [month, setMonth] = useState(today().slice(0, 7));
   const [rides, setRides] = useState<MyRide[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const { from, to } = monthRange(month);
-    loadMyRides(orgId, from, to < today() ? to : today())
+    loadMyRidesAll(from, to < today() ? to : today())
       .then((r) => setRides(r.filter((x) => x.status === "active")))
       .catch((e) => setError(e.message));
-  }, [orgId, month]);
+  }, [month]);
 
   const total = rides.reduce((s, r) => s + (r.driver_cost ?? 0), 0);
   const paid = rides.filter((r) => r.driver_paid_at).reduce((s, r) => s + (r.driver_cost ?? 0), 0);
+  const byOrg = [...new Set(rides.map((r) => r.org_name ?? ""))].map((name) => {
+    const list = rides.filter((r) => (r.org_name ?? "") === name);
+    const t = list.reduce((s, r) => s + (r.driver_cost ?? 0), 0);
+    const p = list.filter((r) => r.driver_paid_at).reduce((s, r) => s + (r.driver_cost ?? 0), 0);
+    return { name, count: list.length, total: t, open: t - p };
+  });
 
   return (
     <div className="stack">
@@ -32,11 +38,23 @@ export default function MyPay() {
         <div className="row between"><span>נשאר לתשלום</span><strong className={total - paid > 0 ? "debt-text" : "ok-text"}>{money(total - paid)}</strong></div>
       </div>
 
+      {multi && byOrg.length > 0 && (
+        <div className="card stack">
+          <strong className="small">לפי עסק</strong>
+          {byOrg.map((o) => (
+            <div key={o.name} className="row between small">
+              <span>{o.name} · {o.count} נסיעות</span>
+              <span>{money(o.total)}{o.open > 0 ? ` · נשאר ${money(o.open)}` : " ✓"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <ul className="cards">
         {rides.map((r) => (
           <li key={r.id} className="card">
             <div className="row between small">
-              <span>{r.ride_date.split("-").reverse().slice(0, 2).join("/")} {r.ride_time?.slice(0, 5) ?? ""} · {r.pickup ?? "?"} ← {r.dropoff ?? "?"}</span>
+              <span>{r.ride_date.split("-").reverse().slice(0, 2).join("/")} {r.ride_time?.slice(0, 5) ?? ""} · {r.pickup ?? "?"} ← {r.dropoff ?? "?"}{multi && r.org_name ? ` · ${r.org_name}` : ""}</span>
               <span>{money(r.driver_cost)} {r.driver_paid_at ? "✓" : ""}</span>
             </div>
           </li>

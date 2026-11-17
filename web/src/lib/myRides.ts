@@ -2,6 +2,8 @@ import { supabase } from "../supabase";
 
 export type MyRide = {
   id: string;
+  org_id?: string;
+  org_name?: string;
   ride_date: string;
   ride_time: string | null;
   pickup: string | null;
@@ -35,4 +37,15 @@ export async function loadMyRides(orgId: string, from: string, to: string): Prom
 export async function respond(token: string, action: "confirm" | "decline") {
   const { error } = await supabase.functions.invoke("driver-response", { body: { token, action } });
   if (error) throw error;
+}
+
+/** All the driver's rides in every business he drives for */
+export async function loadMyRidesAll(from: string, to: string): Promise<MyRide[]> {
+  const { data, error } = await supabase.rpc("my_rides_all", { p_from: from, p_to: to });
+  if (error) throw error;
+  return ((data ?? []) as MyRide[]).map((r) => ({
+    ...r,
+    driver_cost: r.driver_cost == null ? null : Number(r.driver_cost),
+    distance_km: r.distance_km == null ? null : Number(r.distance_km),
+  }));
 }
