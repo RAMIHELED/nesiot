@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import VoiceButton from "./VoiceButton";
 import { supabase } from "../supabase";
 import { addDays, today } from "../lib/format";
 import { rangeLabel, type Absence } from "../lib/absences";
@@ -7,15 +8,43 @@ import type { Driver } from "../types";
 type Conflict = { id: string; ride_date: string; ride_time: string | null; pickup: string | null; dropoff: string | null; driver_id: string | null };
 
 /** Vacations / days off: list, add, delete, and rides that clash with a new vacation */
-export default function Vacations({ orgId, drivers, absences, onChange }: {
-  orgId: string; drivers: Driver[]; absences: Absence[]; onChange: () => void;
+export default function Vacations({ orgId, drivers, absences, onChange, initialDriverId = "" }: {
+  orgId: string; drivers: Driver[]; absences: Absence[]; onChange: () => void; initialDriverId?: string;
 }) {
-  const [driverId, setDriverId] = useState<string>("");
+  const [driverId, setDriverId] = useState<string>(initialDriverId);
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [conflicts, setConflicts] = useState<{ absence: Absence; rides: Conflict[] } | null>(null);
+
+  // Voice / text → form fields
+  const [voiceText, setVoiceText] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [missing, setMissing] = useState<string[]>([]);
+  const baseTextRef = useRef("");
+  const joinText = (base: string, add: string) => (base ? `${base}\n${add}` : add);
+
+  const parse = async (textOverride?: string) => {
+    const text = (textOverride ?? voiceText).trim();
+    if (!text) return;
+    setParsing(true);
+    setMsg(null);
+    const { data, error } = await supabase.functions.invoke("parse-absence", { body: { text, org_id: orgId, today: today() } });
+    setParsing(false);
+    if (error || !data?.absence) return setMsg("הפענוח נכשל. אפשר למלא ידנית.");
+    const a = data.absence as { all_drivers: boolean; driver_id: string | null; start_date: string | null; end_date: string | null; note: string | null; missing?: string[] };
+    if (a.all_drivers) setDriverId("");
+    else if (a.driver_id) setDriverId(a.driver_id);
+    if (a.start_date) {
+      setFrom(a.start_date);
+      setTo(a.end_date && a.end_date >= a.start_date ? a.end_date : a.start_date);
+    }
+    if (a.note) setNote(a.note);
+    const miss = [...(a.missing ?? [])];
+    if (!a.all_drivers && !a.driver_id && !miss.includes("מי")) miss.push("מי");
+    setMissing(miss);
+  };
 
   const nameOf = (id: string | null) =>
     id === null ? "כל הנהגים" : drivers.find((d) => d.id === id)?.name ?? "נהג";
@@ -41,6 +70,8 @@ export default function Vacations({ orgId, drivers, absences, onChange }: {
     else setMsg("נשמר ✓");
 
     setNote("");
+    setVoiceText("");
+    setMissing([]);
     onChange();
   };
 
@@ -76,6 +107,30 @@ export default function Vacations({ orgId, drivers, absences, onChange }: {
       ))}
 
       <form onSubmit={add} className="stack">
+        <label>
+          אפשר להקליט, לדוגמה: "משה בחופשה מה-20 עד ה-25, מילואים" או "כולם בחופש ביום שלישי"
+          <textarea rows={2} value={voiceText} onChange={(e) => setVoiceText(e.target.value)} />
+        </label>
+        <div className="row">
+          <VoiceButton
+            label={voiceText.trim() ? "🎤 הוספה בהקלטה" : "🎤 הקלטה"}
+            onStart={() => { baseTextRef.current = voiceText.trim(); }}
+            onText={(t) => setVoiceText(joinText(baseTextRef.current, t))}
+            onEnd={(t) => parse(joinText(baseTextRef.current, t))}
+          />
+          <button type="button" className="btn primary" onClick={() => parse()} disabled={parsing || !voiceText.trim()}>
+            {parsing ? "מפענח…" : "✨ מלא אוטומטית"}
+          </button>
+          {voiceText.trim() && (
+            <button type="button" className="btn link small" onClick={() => { setVoiceText(""); setMissing([]); }}>ניקוי</button>
+          )}
+        </div>
+        {missing.length > 0 && (
+          <div className="alert">
+            חסר: {missing.join(", ")}
+            <div className="small">לחצו "הוספה בהקלטה" ואמרו רק את מה שחסר, או בחרו למטה.</div>
+          </div>
+        )}
         <label>
           מי
           <select value={driverId} onChange={(e) => setDriverId(e.target.value)}>

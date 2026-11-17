@@ -11,6 +11,7 @@ import Prices from "./pages/Prices";
 import Recurring from "./pages/Recurring";
 import Settings from "./pages/Settings";
 import DriverResponse from "./pages/DriverResponse";
+import VacationsPage from "./pages/VacationsPage";
 
 export default function App() {
   const { session, loading, org, signOut } = useSession();
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/rides/:id" element={<RideForm />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/drivers" element={<Drivers />} />
+        <Route path="/vacations" element={<VacationsPage />} />
         <Route path="/prices" element={<Prices />} />
         <Route path="/recurring" element={<Recurring />} />
         <Route path="/month" element={<MonthEnd />} />

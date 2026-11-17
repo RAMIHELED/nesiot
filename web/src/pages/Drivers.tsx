@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import VoiceButton from "../components/VoiceButton";
-import Vacations from "../components/Vacations";
-import { absenceOf, loadAbsences, rangeLabel, type Absence } from "../lib/absences";
+import { loadAbsences, rangeLabel, type Absence } from "../lib/absences";
 import { addDays, today } from "../lib/format";
 import { supabase } from "../supabase";
 import { useOrgId } from "../lib/session";
@@ -60,13 +60,9 @@ export default function Drivers() {
     loadAbs();
   }, [orgId]);
 
-  // Vacation now, or the next one, for the badge on the driver card
-  const vacationBadge = (driverId: string) => {
-    const now = absenceOf(driverId, today(), absences);
-    if (now) return `🏖 בחופשה עד ${rangeLabel({ ...now, start_date: now.end_date })}`;
-    const next = absences.find((a) => a.driver_id === driverId);
-    return next ? `🏖 חופשה ${rangeLabel(next)}` : null;
-  };
+  const vacationsOf = (driverId: string) => absences.filter((a) => a.driver_id === driverId);
+  const allDrivers = absences.filter((a) => a.driver_id === null);
+  const isNow = (a: Absence) => a.start_date <= today() && today() <= a.end_date;
 
   const selfTaken = (exceptId?: string) => list.some((d) => d.is_self && d.id !== exceptId);
 
@@ -149,7 +145,15 @@ export default function Drivers() {
 
   return (
     <div className="stack">
-      <h2>נהגים וקבלני משנה</h2>
+      <div className="row between">
+        <h2>נהגים וקבלני משנה</h2>
+        <Link to="/vacations" className="btn">🏖 חופשות</Link>
+      </div>
+      {allDrivers.length > 0 && (
+        <div className="alert small">
+          🏖 חופשה לכל הנהגים: {allDrivers.map((a) => `${rangeLabel(a)}${a.note ? ` (${a.note})` : ""}`).join(" · ")}
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
 
       <ul className="cards">
@@ -169,7 +173,6 @@ export default function Drivers() {
             <li key={d.id} className={`card clickable ${d.active ? "" : "dim"}`} onClick={() => startEdit(d)}>
               <div className="row between">
                 <strong>{d.name}{d.is_self ? " (אני)" : ""}{d.active ? "" : " · מושבת"}</strong>
-                {vacationBadge(d.id) && <span className="badge badge-vacation">{vacationBadge(d.id)}</span>}
                 <button className="btn link small" onClick={(e) => { e.stopPropagation(); toggleActive(d); }}>
                   {d.active ? "השבתה" : "הפעלה"}
                 </button>
@@ -180,13 +183,19 @@ export default function Drivers() {
                 {d.car_model ? ` · ${d.car_model}` : ""}
               </span>
               {d.notes && <span className="small muted">{d.notes}</span>}
+              <div className="vac-row" onClick={(e) => e.stopPropagation()}>
+                {vacationsOf(d.id).map((a) => (
+                  <span key={a.id} className={`vac-chip ${isNow(a) ? "now" : ""}`}>
+                    🏖 {isNow(a) ? "עכשיו · " : ""}{rangeLabel(a)}{a.note ? ` · ${a.note}` : ""}
+                  </span>
+                ))}
+                <Link to={`/vacations?driver=${d.id}`} className="vac-add">+ חופשה</Link>
+              </div>
             </li>
           ),
         )}
       </ul>
       <p className="small muted">לחיצה על נהג פותחת עריכה. נהג מושבת לא מופיע בבחירת נהג לנסיעה.</p>
-
-      <Vacations orgId={orgId} drivers={list.filter((d) => d.active)} absences={absences} onChange={loadAbs} />
 
       <form onSubmit={add} className="panel stack">
         <strong>נהג חדש</strong>

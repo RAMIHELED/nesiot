@@ -151,3 +151,8 @@ textarea { resize: vertical; }
 /* Vacations */
 .badge-vacation { background: #e6f3ff; color: #0b5cad; }
 .vacation-label { color: #0b5cad; font-weight: 600; }
+
+.vac-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+.vac-chip { font-size: 0.8rem; background: #e6f3ff; color: #0b5cad; border-radius: 6px; padding: 2px 8px; }
+.vac-chip.now { background: #0b5cad; color: #fff; font-weight: 600; }
+.vac-add { font-size: 0.8rem; color: var(--primary); text-decoration: none; padding: 2px 4px; }
