@@ -212,7 +212,13 @@ export default function RideForm() {
       return;
     }
     setForm((f) => ({ ...f, distance_km: String(data.distance_km), duration_min: String(data.duration_min ?? "") }));
-    setSaved(false);
+    if (!isNew && id && !force) {
+      // Existing ride opened without a distance: store it quietly, the ride stays "saved"
+      await supabase.from("rides")
+        .update({ distance_km: data.distance_km, duration_min: data.duration_min ?? null }).eq("id", id);
+    } else {
+      setSaved(false);
+    }
     setDistanceMsg(data.source === "previous_ride" ? "לפי נסיעה קודמת במסלול הזה" : "חושב לפי Google Maps");
   };
 

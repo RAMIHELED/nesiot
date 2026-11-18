@@ -12,6 +12,10 @@ type Ctx = {
   org: Org | null;
   setOrgId: (id: string) => void;
   signOut: () => Promise<void>;
+  /** Platform admin (opens and manages businesses) */
+  isAdmin: boolean;
+  /** Re-read the businesses list (after opening a new business) */
+  refreshOrgs: () => void;
 };
 
 const SessionContext = createContext<Ctx | null>(null);
@@ -20,6 +24,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [orgs, setOrgs] = useState<Org[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [reload, setReload] = useState(0);
   const [orgId, setOrgIdState] = useState<string | null>(() => localStorage.getItem("orgId"));
 
   useEffect(() => {
@@ -34,9 +40,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session) {
       setOrgs([]);
+      setIsAdmin(false);
       return;
     }
-    setLoading(true);
+    // A refresh (new business opened) keeps the current screen; only the first load shows "loading"
+    if (orgs.length === 0) setLoading(true);
+    supabase.rpc("is_platform_admin").then(({ data, error }) => setIsAdmin(!error && data === true));
     supabase
       .from("memberships")
       .select("role, driver_id, organizations(id, name)")
@@ -50,7 +59,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setOrgs(list);
         setLoading(false);
       });
-  }, [session]);
+  }, [session, reload]);
 
   const org = orgs.find((o) => o.id === orgId) ?? orgs[0] ?? null;
 
@@ -68,7 +77,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <SessionContext.Provider value={{ session, loading, orgs, org, setOrgId, signOut }}>
+    <SessionContext.Provider value={{ session, loading, orgs, org, setOrgId, signOut, isAdmin, refreshOrgs: () => setReload((n) => n + 1) }}>
       {children}
     </SessionContext.Provider>
   );

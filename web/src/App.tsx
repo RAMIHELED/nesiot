@@ -6,6 +6,7 @@ import Calendar from "./pages/Calendar";
 import RideForm from "./pages/RideForm";
 import Customers from "./pages/Customers";
 import CustomerCard from "./pages/CustomerCard";
+import Admin from "./pages/Admin";
 import Drivers from "./pages/Drivers";
 import MonthEnd from "./pages/MonthEnd";
 import Prices from "./pages/Prices";
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/recurring" element={<Recurring />} />
         <Route path="/month" element={<MonthEnd />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

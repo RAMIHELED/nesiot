@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "../supabase";
 import { useSession } from "../lib/session";
@@ -15,7 +16,7 @@ const pushText: Record<PushState, string> = {
 };
 
 export default function Settings() {
-  const { session, org, orgs, setOrgId, signOut } = useSession();
+  const { session, org, orgs, setOrgId, signOut, isAdmin } = useSession();
 
   const [push, setPush] = useState<PushState | null>(null);
   const [pushMsg, setPushMsg] = useState<string | null>(null);
@@ -98,6 +99,8 @@ export default function Settings() {
           </select>
         </label>
       )}
+
+      {isAdmin && <Link to="/admin" className="btn">🛠 ניהול עסקים (אדמין)</Link>}
 
       <div className="panel stack">
         <strong>תזכורות לפני נסיעה</strong>
