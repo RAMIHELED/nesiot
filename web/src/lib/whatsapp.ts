@@ -144,6 +144,42 @@ export function customerDriverMessage(p: {
   ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n").trim();
 }
 
+export type ReminderRide = {
+  ride_time: string | null;
+  pickup: string | null;
+  dropoff: string | null;
+  flight_number: string | null;
+  passengers: number | null;
+  driver_name?: string | null;
+  driver_phone?: string | null;
+  car_model?: string | null;
+  car_plate?: string | null;
+};
+
+/** Reminder to a customer about their rides on one day (usually tomorrow) */
+export function customerReminderMessage(customerName: string, orgName: string, date: string, rides: ReminderRide[]): string {
+  const blocks = rides.map((r) => {
+    const car = [r.car_model, r.car_plate ? `מס׳ ${r.car_plate}` : ""].filter(Boolean).join(" · ");
+    return [
+      `🕐 ${r.ride_time ? shortTime(r.ride_time) : "שעה תתואם"}`,
+      r.pickup ? `📍 איסוף: ${r.pickup}` : "",
+      r.dropoff ? `🏁 יעד: ${r.dropoff}` : "",
+      r.flight_number ? `✈️ טיסה: ${r.flight_number}` : "",
+      r.passengers ? `👥 ${r.passengers} נוסעים` : "",
+      r.driver_name ? `🚖 הנהג: ${r.driver_name}${r.driver_phone ? ` ${r.driver_phone}` : ""}` : "",
+      car ? `🚗 ${car}` : "",
+    ].filter(Boolean).join("\n");
+  });
+  return [
+    `שלום ${customerName},`,
+    `תזכורת מ${orgName} לנסיעה ${dayLabel(date).includes(" · ") ? dayLabel(date).replace(" · ", ", ") : `ב${dayLabel(date)}`}:`,
+    "",
+    blocks.join("\n\n"),
+    "",
+    "אם משהו השתנה (שעה, כתובת, מספר נוסעים) נא לעדכן אותנו 🙏",
+  ].join("\n");
+}
+
 export function waLink(phone: string | null, text: string): string {
   const p = toWaPhone(phone);
   const q = encodeURIComponent(text);

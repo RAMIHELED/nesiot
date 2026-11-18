@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../supabase";
-import { useCanEdit, useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId, useSession } from "../lib/session";
 import { addDays, dayLabel, money, shortTime, today } from "../lib/format";
 import { hhmm, interval } from "../lib/availability";
-import { scheduleMessage, toWaPhone, waLink } from "../lib/whatsapp";
+import { customerReminderMessage, scheduleMessage, toWaPhone, waLink } from "../lib/whatsapp";
 import { absenceOf, allOff, loadAbsences, type Absence } from "../lib/absences";
 import type { Driver, RideWithNames } from "../types";
 
@@ -33,7 +33,7 @@ export default function Calendar() {
     setLoading(true);
     supabase
       .from("rides")
-      .select("*, customer:customers(name, phone), driver:drivers(name, is_self)")
+      .select("*, customer:customers(name, phone), driver:drivers(name, is_self, phone, car_model, car_plate)")
       .eq("org_id", orgId)
       .gte("ride_date", start)
       .lte("ride_date", end)
@@ -169,6 +169,11 @@ export default function Calendar() {
         </section>
       ))}
 
+      {range === "day" && canEdit && active.some((r) => r.customer_id) && (
+        <CustomersDay rides={active} date={start}
+          onSent={(ids, at) => setRides((rs) => rs.map((r) => ids.includes(r.id) ? { ...r, customer_reminded_at: at } : r))} />
+      )}
+
       {range === "day" && drivers.length > 0 && (
         <DriversDay drivers={drivers} rides={active} date={start} absences={absences} canEdit={canEdit}
           onSent={(ids, at) => setRides((rs) => rs.map((r) => ids.includes(r.id) ? { ...r, driver_status: "sent", driver_sent_at: at } : r))} />
@@ -251,6 +256,57 @@ function DriversDay({ drivers, rides, date, absences, canEdit, onSent }: {
         </div>
       )}
       <p className="small muted">זמן תפוס = משעת האיסוף ועד סוף הנסיעה המשוערת + חצי שעה (בלי מרחק משוער: שעה).</p>
+    </div>
+  );
+}
+
+/** WhatsApp reminder to each customer with rides on this day */
+function CustomersDay({ rides, date, onSent }: {
+  rides: RideWithNames[]; date: string; onSent: (rideIds: string[], at: string) => void;
+}) {
+  const { org } = useSession();
+  const groups = new Map<string, RideWithNames[]>();
+  for (const r of rides) {
+    if (!r.customer_id) continue;
+    groups.set(r.customer_id, [...(groups.get(r.customer_id) ?? []), r]);
+  }
+  const list = [...groups.values()];
+  const sentCount = list.filter((g) => g.every((r) => r.customer_reminded_at)).length;
+
+  const send = async (g: RideWithNames[]) => {
+    const at = new Date().toISOString();
+    const ids = g.map((r) => r.id);
+    const { error } = await supabase.from("rides").update({ customer_reminded_at: at }).in("id", ids);
+    if (!error) onSent(ids, at);
+  };
+
+  return (
+    <div className="panel stack">
+      <div className="row between">
+        <strong>תזכורת ללקוחות</strong>
+        <span className="small muted">{sentCount}/{list.length} נשלחו</span>
+      </div>
+      {list.map((g) => {
+        const c = g[0].customer!;
+        const sent = g.every((r) => r.customer_reminded_at);
+        const noDriver = g.some((r) => !r.driver);
+        const text = customerReminderMessage(c.name, org?.name ?? "", date, g.map((r) => ({
+          ride_time: r.ride_time, pickup: r.pickup, dropoff: r.dropoff, flight_number: r.flight_number, passengers: r.passengers,
+          driver_name: r.driver?.name, driver_phone: r.driver?.phone, car_model: r.driver?.car_model, car_plate: r.driver?.car_plate,
+        })));
+        return (
+          <div key={g[0].customer_id} className="driver-row">
+            <span className="driver-name">{c.name}</span>
+            <span className="small muted">{g.map((r) => shortTime(r.ride_time) || "ללא שעה").join(", ")}</span>
+            {noDriver && <span className="small debt-text">אין נהג עדיין</span>}
+            <a className="btn small" href={waLink(c.phone ?? null, text)} target="_blank" rel="noreferrer" onClick={() => send(g)}>
+              {sent ? "✓ נשלחה · שוב" : "💬 תזכורת"}
+            </a>
+            {!toWaPhone(c.phone ?? null) && <span className="small muted">אין טלפון</span>}
+          </div>
+        );
+      })}
+      <p className="small muted">הודעה ללקוח עם השעה, הכתובת והנהג (שם, טלפון, רכב). מומלץ לשלוח בערב על מחר, אחרי ששובצו נהגים.</p>
     </div>
   );
 }

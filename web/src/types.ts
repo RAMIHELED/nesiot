@@ -51,7 +51,8 @@ export type Ride = {
 
 export type RideWithNames = Ride & {
   customer: { name: string; phone?: string | null } | null;
-  driver: { name: string; is_self: boolean } | null;
+  driver: { name: string; is_self: boolean; phone?: string | null; car_model?: string | null; car_plate?: string | null } | null;
+  customer_reminded_at?: string | null;
 };
 
 export type ParsedRide = {
