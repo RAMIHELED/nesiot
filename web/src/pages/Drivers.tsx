@@ -8,7 +8,7 @@ import { useCanEdit, useOrgId, useSession } from "../lib/session";
 import { normalizeIlMobile } from "../lib/phone";
 import type { Driver } from "../types";
 
-type Draft = { name: string; phone: string; is_self: boolean; notes: string; seats: number; car_model: string };
+type Draft = { name: string; phone: string; is_self: boolean; notes: string; seats: number; car_model: string; car_plate: string };
 
 const SEAT_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20];
 
@@ -19,6 +19,7 @@ const toDraft = (d?: Driver): Draft => ({
   notes: d?.notes ?? "",
   seats: d?.seats ?? 5,
   car_model: d?.car_model ?? "",
+  car_plate: d?.car_plate ?? "",
 });
 
 // Returns the row to save, or an error message
@@ -34,6 +35,7 @@ const toRow = (d: Draft) => {
       notes: d.notes.trim() || null,
       seats: d.seats,
       car_model: d.car_model.trim() || null,
+      car_plate: d.car_plate.trim() || null,
     },
   };
 };
@@ -216,6 +218,7 @@ export default function Drivers() {
                 {d.phone && <span dir="ltr">{d.phone}</span>}
                 {` · ${d.seats} מקומות`}
                 {d.car_model ? ` · ${d.car_model}` : ""}
+                {d.car_plate ? ` · ${d.car_plate}` : ""}
               </span>
               {d.notes && <span className="small muted">{d.notes}</span>}
               <div className="vac-row" onClick={(e) => e.stopPropagation()}>
@@ -305,6 +308,10 @@ function DriverFields({ d, set, canBeSelf }: { d: Draft; set: (d: Draft) => void
           <input placeholder="לדוגמה: טויוטה קורולה" value={d.car_model} onChange={(e) => set({ ...d, car_model: e.target.value })} />
         </label>
       </div>
+      <label>
+        מספר רכב (לא חובה, נשלח ללקוח)
+        <input placeholder="לדוגמה: 12-345-67" dir="ltr" value={d.car_plate} onChange={(e) => set({ ...d, car_plate: e.target.value })} />
+      </label>
       <input placeholder="הערות" value={d.notes} onChange={(e) => set({ ...d, notes: e.target.value })} />
       {(canBeSelf || d.is_self) && (
         <label className="row check">

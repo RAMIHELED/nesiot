@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
-import { useCanEdit, useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId, useSession } from "../lib/session";
 import { money, today } from "../lib/format";
-import { rideMessage, waLink } from "../lib/whatsapp";
+import { customerDriverMessage, rideMessage, waLink } from "../lib/whatsapp";
 import { driverAvailability, hhmm, interval, type Availability, type TimedRide } from "../lib/availability";
 import VoiceButton from "../components/VoiceButton";
 import CustomerPicker from "../components/CustomerPicker";
@@ -59,6 +59,7 @@ export default function RideForm() {
   const isNew = !id;
   const canEdit = useCanEdit();
   const orgId = useOrgId();
+  const { org } = useSession();
   const navigate = useNavigate();
   // /rides/new?customer=<id> (from the customer card) pre-selects the customer
   const [params] = useSearchParams();
@@ -601,6 +602,23 @@ export default function RideForm() {
       )}
 
       </fieldset>
+
+      {canEdit && saved && !isNew && driver && customer && form.status === "active" && (
+        <div className="panel stack small">
+          <strong>פרטי הנהג ללקוח</strong>
+          {!driver.is_self && confirmForDriver?.driver_status !== "confirmed" && (
+            <span className="muted">⏳ {driver.name} עוד לא אישר. מומלץ לשלוח ללקוח אחרי האישור.</span>
+          )}
+          <div className="row">
+            <a className="btn" target="_blank" rel="noreferrer" href={waLink(customer.phone, customerDriverMessage({
+              customer_name: customer.name, org_name: org?.name ?? "", ride_date: form.ride_date,
+              ride_time: strOrNull(form.ride_time), pickup: strOrNull(form.pickup), flight_number: strOrNull(form.flight_number),
+              driver_name: driver.name, driver_phone: driver.phone, car_model: driver.car_model, car_plate: driver.car_plate,
+            }))}>💬 שליחה ל{customer.name}</a>
+            {!customer.phone && <span className="muted">אין ללקוח טלפון: וואטסאפ ייפתח לבחירת איש קשר</span>}
+          </div>
+        </div>
+      )}
 
       {error && <p className="error">{error}</p>}
 

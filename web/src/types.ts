@@ -18,6 +18,7 @@ export type Driver = {
   notes: string | null;
   seats: number;
   car_model: string | null;
+  car_plate?: string | null;
 };
 
 export type Ride = {

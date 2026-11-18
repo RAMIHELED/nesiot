@@ -115,6 +115,35 @@ export function driverStatementMessage(driverName: string, orgName: string, mont
   ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");
 }
 
+/** To the customer: who is coming to pick them up */
+export function customerDriverMessage(p: {
+  customer_name: string | null | undefined;
+  org_name: string;
+  ride_date: string;
+  ride_time: string | null;
+  pickup: string | null;
+  flight_number: string | null;
+  driver_name: string;
+  driver_phone: string | null;
+  car_model: string | null | undefined;
+  car_plate: string | null | undefined;
+}): string {
+  const car = [p.car_model, p.car_plate ? `מס׳ ${p.car_plate}` : ""].filter(Boolean).join(" · ");
+  return [
+    `שלום${p.customer_name ? ` ${p.customer_name}` : ""},`,
+    `פרטי הנסיעה שלך מ${p.org_name}:`,
+    `📅 ${dayLabel(p.ride_date)}${p.ride_time ? ` בשעה ${shortTime(p.ride_time)}` : ""}`,
+    p.pickup ? `📍 איסוף: ${p.pickup}` : "",
+    p.flight_number ? `✈️ טיסה: ${p.flight_number}` : "",
+    "",
+    `🚖 הנהג: ${p.driver_name}`,
+    p.driver_phone ? `📞 ${p.driver_phone}` : "",
+    car ? `🚗 ${car}` : "",
+    "",
+    "נסיעה טובה!",
+  ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n").trim();
+}
+
 export function waLink(phone: string | null, text: string): string {
   const p = toWaPhone(phone);
   const q = encodeURIComponent(text);
