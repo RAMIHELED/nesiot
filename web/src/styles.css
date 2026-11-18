@@ -167,3 +167,17 @@ fieldset.plain:disabled input, fieldset.plain:disabled select, fieldset.plain:di
 .app-on { color: var(--self); }
 .inline-input { width: auto; flex: 1; padding: 4px 8px; font-size: 14px; }
 .user-row { border-top: 1px solid var(--line); padding-top: 6px; }
+
+/* Customer search picker */
+.picker { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.picker-list { position: absolute; top: 46px; inset-inline: 0; z-index: 5; list-style: none; margin: 0; padding: 4px 0;
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.12); max-height: 320px; overflow: auto; }
+.picker-list button { font: inherit; width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 10px 12px;
+  border: 0; background: none; color: var(--ink); cursor: pointer; text-align: start; }
+.picker-list button:hover { background: var(--bg); }
+.picker-head { padding: 4px 12px; }
+.picker-chosen { color: var(--self); }
+.picker-new { color: var(--primary); }
+.sort-row { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field-label { font-size: 0.9rem; color: var(--muted); }

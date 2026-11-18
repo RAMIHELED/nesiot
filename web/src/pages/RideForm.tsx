@@ -6,6 +6,7 @@ import { money, today } from "../lib/format";
 import { rideMessage, waLink } from "../lib/whatsapp";
 import { driverAvailability, hhmm, interval, type Availability, type TimedRide } from "../lib/availability";
 import VoiceButton from "../components/VoiceButton";
+import CustomerPicker from "../components/CustomerPicker";
 import { PAYMENT_METHODS } from "./Customers";
 import { absenceOf, allOff, loadAbsences, rangeLabel, type Absence } from "../lib/absences";
 import type { Customer, Driver, ParsedRide, Ride } from "../types";
@@ -63,6 +64,8 @@ export default function RideForm() {
   const [form, setForm] = useState<Form>(emptyForm);
   const [source, setSource] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
+  // customer → last ride date, so the picker shows recent customers first
+  const [recentCustomers, setRecentCustomers] = useState<Map<string, string>>(new Map());
   const [drivers, setDrivers] = useState<Driver[]>([]);
   // Other rides on the same date, to know which driver is free
   const [dayRides, setDayRides] = useState<TimedRide[]>([]);
@@ -98,6 +101,9 @@ export default function RideForm() {
   useEffect(() => {
     supabase.from("customers").select("*").eq("org_id", orgId).order("name")
       .then(({ data }) => setCustomers((data ?? []) as Customer[]));
+    supabase.from("customer_stats").select("customer_id, last_ride_date, next_ride_date").eq("org_id", orgId)
+      .then(({ data }) => setRecentCustomers(new Map((data ?? [])
+        .map((x) => [x.customer_id as string, (x.last_ride_date ?? x.next_ride_date ?? "") as string]))));
     supabase.from("drivers").select("*").eq("org_id", orgId).eq("active", true).order("is_self", { ascending: false }).order("name")
       .then(({ data }) => setDrivers((data ?? []) as Driver[]));
   }, [orgId]);
@@ -447,20 +453,20 @@ export default function RideForm() {
         )}
       </div>)}
 
-      <label>
-        לקוח
-        <select value={form.customer_id} onChange={(e) => set("customer_id", e.target.value)}>
-          <option value="">— לקוח חדש / ללא —</option>
-          {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </label>
-      {!form.customer_id && (
-        <div className="row">
-          <input placeholder="שם לקוח חדש" value={form.new_customer_name}
-            onChange={(e) => set("new_customer_name", e.target.value)} />
-          <input placeholder="טלפון" dir="ltr" inputMode="tel" value={form.new_customer_phone}
-            onChange={(e) => set("new_customer_phone", e.target.value)} />
-        </div>
+      <div className="field">
+        <span className="field-label">לקוח</span>
+        <CustomerPicker
+          customers={customers}
+          recent={recentCustomers}
+          value={form.customer_id}
+          newName={form.new_customer_name}
+          onSelect={(cid) => set("customer_id", cid)}
+          onNewName={(n) => set("new_customer_name", n)}
+        />
+      </div>
+      {!form.customer_id && form.new_customer_name.trim() && (
+        <input placeholder="טלפון של הלקוח החדש" dir="ltr" inputMode="tel" value={form.new_customer_phone}
+          onChange={(e) => set("new_customer_phone", e.target.value)} />
       )}
 
       <div className="row">
