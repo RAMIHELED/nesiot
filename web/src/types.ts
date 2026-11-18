@@ -49,7 +49,7 @@ export type Ride = {
 };
 
 export type RideWithNames = Ride & {
-  customer: { name: string } | null;
+  customer: { name: string; phone?: string | null } | null;
   driver: { name: string; is_self: boolean } | null;
 };
 

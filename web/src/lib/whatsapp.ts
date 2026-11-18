@@ -43,6 +43,44 @@ export function rideMessage(r: RideMessageInput): string {
   return lines.filter(Boolean).join("\n");
 }
 
+export type ScheduleRide = {
+  ride_time: string | null;
+  pickup: string | null;
+  dropoff: string | null;
+  flight_number: string | null;
+  passengers: number | null;
+  notes: string | null;
+  driver_cost: number | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  /** Confirmation link, only for rides the driver has not confirmed yet */
+  response_url?: string | null;
+};
+
+/** One message with all of a driver's rides for a day */
+export function scheduleMessage(driverName: string, date: string, rides: ScheduleRide[]): string {
+  const total = rides.reduce((s, r) => s + Number(r.driver_cost ?? 0), 0);
+  const blocks = rides.map((r, i) => [
+    `${i + 1}. 🕐 ${r.ride_time ? shortTime(r.ride_time) : "שעה תיקבע"}`,
+    r.pickup ? `📍 ${r.pickup}` : "",
+    r.dropoff ? `🏁 ${r.dropoff}` : "",
+    r.flight_number ? `✈️ טיסה ${r.flight_number}` : "",
+    r.passengers ? `👥 ${r.passengers} נוסעים` : "",
+    r.customer_name ? `👤 ${r.customer_name}${r.customer_phone ? ` ${r.customer_phone}` : ""}` : "",
+    r.driver_cost ? `💰 ${r.driver_cost} ₪` : "",
+    r.notes ? `📝 ${r.notes}` : "",
+    r.response_url ? `👉 אישור: ${r.response_url}` : "",
+  ].filter(Boolean).join("\n"));
+  return [
+    `שלום ${driverName}, הסידור שלך ל${dayLabel(date)}:`,
+    "",
+    blocks.join("\n\n"),
+    "",
+    `סה״כ ${rides.length} נסיעות${total ? ` · ${total} ₪` : ""}`,
+    rides.some((r) => r.response_url) ? "נא לאשר כל נסיעה בקישור שלה 🙏" : "",
+  ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n").trim();
+}
+
 export function waLink(phone: string | null, text: string): string {
   const p = toWaPhone(phone);
   const q = encodeURIComponent(text);

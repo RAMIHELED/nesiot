@@ -4,6 +4,7 @@ import { supabase } from "../supabase";
 import { useCanEdit, useOrgId } from "../lib/session";
 import { addDays, dayLabel, money, shortTime, today } from "../lib/format";
 import { hhmm, interval } from "../lib/availability";
+import { scheduleMessage, toWaPhone, waLink } from "../lib/whatsapp";
 import { absenceOf, allOff, loadAbsences, type Absence } from "../lib/absences";
 import type { Driver, RideWithNames } from "../types";
 
@@ -32,7 +33,7 @@ export default function Calendar() {
     setLoading(true);
     supabase
       .from("rides")
-      .select("*, customer:customers(name), driver:drivers(name, is_self)")
+      .select("*, customer:customers(name, phone), driver:drivers(name, is_self)")
       .eq("org_id", orgId)
       .gte("ride_date", start)
       .lte("ride_date", end)
@@ -168,15 +169,39 @@ export default function Calendar() {
         </section>
       ))}
 
-      {range === "day" && drivers.length > 0 && <DriversDay drivers={drivers} rides={active} date={start} absences={absences} />}
+      {range === "day" && drivers.length > 0 && (
+        <DriversDay drivers={drivers} rides={active} date={start} absences={absences} canEdit={canEdit}
+          onSent={(ids, at) => setRides((rs) => rs.map((r) => ids.includes(r.id) ? { ...r, driver_status: "sent", driver_sent_at: at } : r))} />
+      )}
     </div>
   );
 }
 
 /** Who drives what today, and who is free */
-function DriversDay({ drivers, rides, date, absences }: {
+function DriversDay({ drivers, rides, date, absences, canEdit, onSent }: {
   drivers: Driver[]; rides: RideWithNames[]; date: string; absences: Absence[];
+  canEdit: boolean; onSent: (rideIds: string[], at: string) => void;
 }) {
+  const [sentNow, setSentNow] = useState<Set<string>>(new Set());
+
+  const scheduleFor = (d: Driver, mine: RideWithNames[]) => scheduleMessage(d.name, date, mine.map((r) => ({
+    ride_time: r.ride_time, pickup: r.pickup, dropoff: r.dropoff, flight_number: r.flight_number,
+    passengers: r.passengers, notes: r.notes, driver_cost: r.driver_cost,
+    customer_name: r.customer?.name, customer_phone: r.customer?.phone,
+    response_url: r.driver_status !== "confirmed" && r.driver_token ? `${window.location.origin}/d/${r.driver_token}` : null,
+  })));
+
+  // Opening WhatsApp counts as sending: rides wait for the driver's confirmation from now
+  const markSent = async (d: Driver, mine: RideWithNames[]) => {
+    setSentNow((s) => new Set(s).add(d.id));
+    const ids = mine.filter((r) => r.driver_status === "none").map((r) => r.id);
+    if (ids.length === 0) return;
+    const at = new Date().toISOString();
+    const { error } = await supabase.from("rides")
+      .update({ driver_status: "sent", driver_sent_at: at, unconfirmed_alert_at: null }).in("id", ids);
+    if (!error) onSent(ids, at);
+  };
+
   const rows = drivers.map((d) => {
     const mine = rides.filter((r) => r.driver_id === d.id);
     return { d, mine, away: absenceOf(d.id, date, absences) };
@@ -188,9 +213,21 @@ function DriversDay({ drivers, rides, date, absences }: {
   return (
     <div className="panel stack">
       <strong>נהגים ביום הזה</strong>
+      {canEdit && busy.some((x) => !x.d.is_self) && (
+        <p className="small muted">💬 סידור = הודעת וואטסאפ אחת לנהג עם כל הנסיעות שלו ביום הזה וקישור אישור לכל נסיעה. מומלץ לשלוח בערב על מחר.</p>
+      )}
       {busy.map(({ d, mine }) => (
         <div key={d.id} className="driver-row">
           <span className="driver-name">{d.is_self ? `${d.name} (אני)` : d.name}{absenceOf(d.id, date, absences) ? " ⚠️🏖" : ""}</span>
+          {canEdit && !d.is_self && (() => {
+            const allConfirmed = mine.every((r) => r.driver_status === "confirmed");
+            const allSent = mine.every((r) => r.driver_status !== "none");
+            const label = sentNow.has(d.id) ? "נשלח ✓" : allConfirmed ? "✓ אישר הכל" : allSent ? "⏳ שליחה שוב" : "💬 סידור";
+            return toWaPhone(d.phone)
+              ? <a className="btn small" href={waLink(d.phone, scheduleFor(d, mine))} target="_blank" rel="noreferrer"
+                  onClick={() => markSent(d, mine)}>{label}</a>
+              : <span className="small muted">אין טלפון</span>;
+          })()}
           <span className="slots">
             {mine.map((r) => {
               const iv = interval(r);
