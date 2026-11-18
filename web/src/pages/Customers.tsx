@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useCanEdit, useOrgId } from "../lib/session";
 import { money, today } from "../lib/format";
 import type { Customer } from "../types";
 
-type Draft = { name: string; phone: string; email: string; kind: "private" | "company"; notes: string };
+export type Draft = { name: string; phone: string; email: string; kind: "private" | "company"; notes: string };
 
-type Balance = {
+export type Balance = {
   customer_id: string;
   rides_total: number;
   paid_total: number;
@@ -39,7 +40,7 @@ const PAGE = 50;           // customers shown before "show more"
 
 type Stats = { customer_id: string; rides_count: number; last_ride_date: string | null; next_ride_date: string | null };
 
-const toDraft = (c?: Customer): Draft => ({
+export const toDraft = (c?: Customer): Draft => ({
   name: c?.name ?? "",
   phone: c?.phone ?? "",
   email: c?.email ?? "",
@@ -47,7 +48,7 @@ const toDraft = (c?: Customer): Draft => ({
   notes: c?.notes ?? "",
 });
 
-const toRow = (d: Draft) => ({
+export const toRow = (d: Draft) => ({
   name: d.name.trim(),
   phone: d.phone.trim() || null,
   email: d.email.trim() || null,
@@ -61,7 +62,7 @@ const daysSince = (iso: string | null) => {
   const [ty, tm, td] = today().split("-").map(Number);
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / 864e5);
 };
-const shortDate = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
+export const shortDate = (iso: string) => iso.split("-").reverse().slice(0, 2).join("/");
 
 export default function Customers() {
   const orgId = useOrgId();
@@ -76,8 +77,7 @@ export default function Customers() {
   const [stats, setStats] = useState<Map<string, Stats>>(new Map());
   const [limit, setLimit] = useState(PAGE);
   const [newDraft, setNewDraft] = useState<Draft>(toDraft());
-  const [editId, setEditId] = useState<string | null>(null);
-  const [edit, setEdit] = useState<Draft>(toDraft());
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -110,33 +110,6 @@ export default function Customers() {
     if (error) return setError(error.message);
     setNewDraft(toDraft());
     setError(null);
-    load();
-  };
-
-  const startEdit = (c: Customer) => {
-    setEditId(c.id);
-    setEdit(toDraft(c));
-    setError(null);
-  };
-
-  const saveEdit = async (e: FormEvent) => {
-    e.preventDefault();
-    const { error } = await supabase.from("customers").update(toRow(edit)).eq("id", editId);
-    if (error) return setError(error.message);
-    setEditId(null);
-    load();
-  };
-
-  const remove = async (c: Customer) => {
-    const { count } = await supabase.from("rides").select("id", { count: "exact", head: true }).eq("customer_id", c.id);
-    if (count && count > 0) {
-      setError(`ל${c.name} יש ${count} נסיעות במערכת, ולכן אי אפשר למחוק אותו. אפשר לערוך את הפרטים.`);
-      return;
-    }
-    if (!window.confirm(`למחוק את ${c.name}?`)) return;
-    const { error } = await supabase.from("customers").delete().eq("id", c.id);
-    if (error) return setError(error.message);
-    setEditId(null);
     load();
   };
 
@@ -216,20 +189,8 @@ export default function Customers() {
           const b = balances.get(c.id);
           const age = daysSince(b?.oldest_unpaid_date ?? null);
           const old = b && b.balance > 0 && age !== null && age > OLD_DEBT_DAYS;
-          return editId === c.id ? (
-            <li key={c.id} className="panel stack">
-              <form onSubmit={saveEdit} className="stack">
-                <fieldset disabled={!canEdit} className="plain stack"><CustomerFields d={edit} set={setEdit} /></fieldset>
-                <div className="row">
-                  {canEdit && <button className="btn primary">שמירה</button>}
-                  <button type="button" className="btn" onClick={() => setEditId(null)}>סגירה</button>
-                  {canEdit && <button type="button" className="btn danger" onClick={() => remove(c)}>מחיקה</button>}
-                </div>
-              </form>
-              {balances.size > 0 && <CustomerAccount customer={c} balance={b} onChange={load} canEdit={canEdit} />}
-            </li>
-          ) : (
-            <li key={c.id} className={`card clickable ${old ? "debt-old" : ""}`} onClick={() => startEdit(c)}>
+          return (
+            <li key={c.id} className={`card clickable ${old ? "debt-old" : ""}`} onClick={() => navigate(`/customers/${c.id}`)}>
               <div className="row between">
                 <strong>{c.name}</strong>
                 {b && b.balance > 0
@@ -262,7 +223,7 @@ export default function Customers() {
       {shown.length > limit && (
         <button className="btn" onClick={() => setLimit(limit + PAGE)}>הצגת עוד {Math.min(PAGE, shown.length - limit)} לקוחות</button>
       )}
-      <p className="small muted">לחיצה על לקוח פותחת עריכה, יתרה ורישום תשלום. חוב = נסיעות שכבר בוצעו פחות תשלומים. חוב ותיק מ-{OLD_DEBT_DAYS} יום מסומן באדום.</p>
+      <p className="small muted">לחיצה על לקוח פותחת את כרטיס הלקוח: היסטוריה, תשלומים ודף חשבון לוואטסאפ. חוב = נסיעות שכבר בוצעו פחות תשלומים. חוב ותיק מ-{OLD_DEBT_DAYS} יום מסומן באדום.</p>
 
       {canEdit && <form onSubmit={add} className="panel stack">
         <strong>לקוח חדש</strong>
@@ -274,7 +235,7 @@ export default function Customers() {
 }
 
 /** Balance, record a payment, recent payments */
-function CustomerAccount({ customer, balance, onChange, canEdit }: { customer: Customer; balance?: Balance; onChange: () => void; canEdit: boolean }) {
+export function CustomerAccount({ customer, balance, onChange, canEdit }: { customer: Customer; balance?: Balance; onChange: () => void; canEdit: boolean }) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("transfer");
@@ -369,7 +330,7 @@ function CustomerAccount({ customer, balance, onChange, canEdit }: { customer: C
   );
 }
 
-function CustomerFields({ d, set }: { d: Draft; set: (d: Draft) => void }) {
+export function CustomerFields({ d, set }: { d: Draft; set: (d: Draft) => void }) {
   return (
     <>
       <input required placeholder="שם" value={d.name} onChange={(e) => set({ ...d, name: e.target.value })} />

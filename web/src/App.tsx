@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Calendar from "./pages/Calendar";
 import RideForm from "./pages/RideForm";
 import Customers from "./pages/Customers";
+import CustomerCard from "./pages/CustomerCard";
 import Drivers from "./pages/Drivers";
 import MonthEnd from "./pages/MonthEnd";
 import Prices from "./pages/Prices";
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/rides/new" element={<RideForm />} />
         <Route path="/rides/:id" element={<RideForm />} />
         <Route path="/customers" element={<Customers />} />
+        <Route path="/customers/:id" element={<CustomerCard />} />
         <Route path="/drivers" element={<Drivers />} />
         <Route path="/vacations" element={<VacationsPage />} />
         <Route path="/prices" element={<Prices />} />

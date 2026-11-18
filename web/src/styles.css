@@ -181,3 +181,9 @@ fieldset.plain:disabled input, fieldset.plain:disabled select, fieldset.plain:di
 .sort-row { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field-label { font-size: 0.9rem; color: var(--muted); }
+
+/* Customer card */
+.statement { white-space: pre-wrap; font: inherit; font-size: 0.9rem; background: var(--bg); border-radius: 8px; padding: 10px 12px; margin: 0; }
+.month-head { border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-top: 6px; }
+.card.cancelled { opacity: 0.55; }
+.card.cancelled strong { text-decoration: line-through; }

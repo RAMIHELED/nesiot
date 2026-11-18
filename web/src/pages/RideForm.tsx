@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useCanEdit, useOrgId } from "../lib/session";
 import { money, today } from "../lib/format";
@@ -60,6 +60,9 @@ export default function RideForm() {
   const canEdit = useCanEdit();
   const orgId = useOrgId();
   const navigate = useNavigate();
+  // /rides/new?customer=<id> (from the customer card) pre-selects the customer
+  const [params] = useSearchParams();
+  const presetCustomer = params.get("customer") ?? "";
 
   const [form, setForm] = useState<Form>(emptyForm);
   const [source, setSource] = useState("");
@@ -110,7 +113,7 @@ export default function RideForm() {
 
   useEffect(() => {
     if (isNew) {
-      setForm(emptyForm());
+      setForm({ ...emptyForm(), customer_id: presetCustomer });
       setSource("");
       setSaved(false);
       return;
