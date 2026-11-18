@@ -24,6 +24,8 @@ export type RideMessageInput = {
   duration_min?: number | null;
   /** Personal confirm/decline link for the driver */
   response_url?: string | null;
+  /** The driver collects this amount from the customer */
+  collect_amount?: number | null;
 };
 
 export function rideMessage(r: RideMessageInput): string {
@@ -37,6 +39,7 @@ export function rideMessage(r: RideMessageInput): string {
     r.distance_km ? `📏 מרחק משוער: ${r.distance_km} ק״מ${r.duration_min ? ` (~${r.duration_min} דק׳)` : ""}` : "",
     r.customer_name ? `👤 לקוח: ${r.customer_name}${r.customer_phone ? ` ${r.customer_phone}` : ""}` : "",
     r.driver_cost ? `💰 תשלום לנהג: ${r.driver_cost} ₪` : "",
+    r.collect_amount ? `💵 לגבות מהלקוח: ${r.collect_amount} ₪` : "",
     r.notes ? `📝 ${r.notes}` : "",
     r.response_url ? `\n👉 לאישור או אם אינך יכול: ${r.response_url}` : "",
   ];
@@ -55,6 +58,7 @@ export type ScheduleRide = {
   customer_phone?: string | null;
   /** Confirmation link, only for rides the driver has not confirmed yet */
   response_url?: string | null;
+  collect_amount?: number | null;
 };
 
 /** One message with all of a driver's rides for a day */
@@ -68,6 +72,7 @@ export function scheduleMessage(driverName: string, date: string, rides: Schedul
     r.passengers ? `👥 ${r.passengers} נוסעים` : "",
     r.customer_name ? `👤 ${r.customer_name}${r.customer_phone ? ` ${r.customer_phone}` : ""}` : "",
     r.driver_cost ? `💰 ${r.driver_cost} ₪` : "",
+    r.collect_amount ? `💵 לגבות מהלקוח: ${r.collect_amount} ₪` : "",
     r.notes ? `📝 ${r.notes}` : "",
     r.response_url ? `👉 אישור: ${r.response_url}` : "",
   ].filter(Boolean).join("\n"));
@@ -91,7 +96,7 @@ export type PayRide = {
 };
 
 /** Monthly statement for a contractor: his rides, the total, what was paid and what is left */
-export function driverStatementMessage(driverName: string, orgName: string, month: string, rides: PayRide[], partial: boolean): string {
+export function driverStatementMessage(driverName: string, orgName: string, month: string, rides: PayRide[], partial: boolean, heldCash = 0): string {
   const [y, m] = month.split("-");
   const total = rides.reduce((s, r) => s + Number(r.driver_cost ?? 0), 0);
   const paid = rides.filter((r) => r.driver_paid_at).reduce((s, r) => s + Number(r.driver_cost ?? 0), 0);
@@ -110,6 +115,12 @@ export function driverStatementMessage(driverName: string, orgName: string, mont
     "",
     `${rides.length} נסיעות · סה״כ ${nis(total)}`,
     paid > 0 ? `שולם: ${nis(paid)} · נותר לתשלום: ${nis(total - paid)}` : "",
+    heldCash > 0 ? `💵 גבית מלקוחות ועוד לא הועבר: ${nis(heldCash)}` : "",
+    heldCash > 0
+      ? (total - paid - heldCash >= 0
+        ? `נטו לתשלום לך: ${nis(total - paid - heldCash)}`
+        : `נטו להעביר אליי: ${nis(heldCash - (total - paid))}`)
+      : "",
     paid > 0 ? "✓ = שולם" : "",
     "אם משהו לא מסתדר לך, תגיד לי 🙏",
   ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");

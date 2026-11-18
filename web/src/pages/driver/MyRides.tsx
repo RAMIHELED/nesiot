@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useDriverOrgs } from "../../lib/session";
 import { hhmm, interval } from "../../lib/availability";
 import { addDays, dayLabel, money, today } from "../../lib/format";
-import { loadMyRidesAll, respond, type MyRide } from "../../lib/myRides";
+import { collect, loadMyRidesAll, respond, uncollect, type MyRide } from "../../lib/myRides";
+import { PAYMENT_METHODS } from "../Customers";
 
 export default function MyRides() {
   const driverOrgs = useDriverOrgs();
@@ -11,10 +12,14 @@ export default function MyRides() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [collectId, setCollectId] = useState<string | null>(null);
+  const [collectAmount, setCollectAmount] = useState("");
+  const [collectMethod, setCollectMethod] = useState("cash");
 
   const load = () => {
     setLoading(true);
-    loadMyRidesAll(today(), addDays(today(), 30))
+    // Past 14 days too: rides where money still has to be recorded
+    loadMyRidesAll(addDays(today(), -14), addDays(today(), 30))
       .then((r) => { setRides(r); setError(null); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -38,13 +43,50 @@ export default function MyRides() {
     }
   };
 
+  const t = today();
+  // Past rides stay in the list only while a requested collection was not recorded yet
+  const shown = rides.filter((r) => r.ride_date >= t || (r.status === "active" && r.collect_amount && r.collected_amount == null));
+  const toCollect = shown.filter((r) => r.status === "active" && r.collect_amount && r.collected_amount == null && r.ride_date <= t).length;
+
+  const openCollect = (r: MyRide) => {
+    setCollectId(r.id);
+    setCollectAmount(String(r.collected_amount ?? r.collect_amount ?? ""));
+    setCollectMethod(r.collected_method ?? "cash");
+  };
+  const saveCollect = async (r: MyRide) => {
+    const n = Number(collectAmount);
+    if (!(n > 0)) return setError("סכום לא תקין");
+    setBusyId(r.id);
+    try {
+      await collect(r.id, n, collectMethod);
+      setCollectId(null);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const undoCollect = async (r: MyRide) => {
+    if (!window.confirm("לבטל את רישום הגבייה?")) return;
+    setBusyId(r.id);
+    try {
+      await uncollect(r.id);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const byDay = useMemo(() => {
     const map = new Map<string, MyRide[]>();
-    for (const r of rides) map.set(r.ride_date, [...(map.get(r.ride_date) ?? []), r]);
+    for (const r of shown) map.set(r.ride_date, [...(map.get(r.ride_date) ?? []), r]);
     return [...map.entries()];
   }, [rides]);
 
-  const waiting = rides.filter((r) => r.status === "active" && r.driver_status !== "confirmed").length;
+  const waiting = rides.filter((r) => r.ride_date >= t && r.status === "active" && r.driver_status !== "confirmed").length;
 
   // Rides of the same day whose times overlap (also between different businesses)
   const overlapOf = (r: MyRide): MyRide | null => {
@@ -62,10 +104,11 @@ export default function MyRides() {
     <div className="stack">
       <h2>הנסיעות שלי</h2>
       {waiting > 0 && <div className="alert">⏳ {waiting} נסיעות מחכות לאישור שלך</div>}
+      {toCollect > 0 && <div className="alert">💵 {toCollect} נסיעות שבהן צריך לרשום כמה גבית מהלקוח</div>}
       {overlaps > 0 && <div className="alert">⚠️ יש לך נסיעות חופפות בזמן. בדוק את הנסיעות המסומנות ואם צריך לחץ "לא יכול".</div>}
       {error && <p className="error">{error}</p>}
       {loading && <p className="muted">טוען…</p>}
-      {!loading && rides.length === 0 && <p className="muted center">אין לך נסיעות בחודש הקרוב.</p>}
+      {!loading && shown.length === 0 && <p className="muted center">אין לך נסיעות בחודש הקרוב.</p>}
 
       {byDay.map(([date, list]) => (
         <section key={date}>
@@ -101,7 +144,33 @@ export default function MyRides() {
                     </div>
                   )}
                   {r.notes && <div className="small">📝 {r.notes}</div>}
-                  {!cancelled && r.driver_token && (
+                  {!cancelled && r.collect_amount != null && r.collected_amount == null && (
+                    <div className="small"><strong>💵 לגבות מהלקוח: {money(r.collect_amount)}</strong></div>
+                  )}
+                  {!cancelled && r.collected_amount != null && collectId !== r.id && (
+                    <div className="row small">
+                      <span className="ok-text">✓ גבית {money(r.collected_amount)} ({PAYMENT_METHODS[r.collected_method ?? "other"]}){r.collected_settled ? " · הוסדר" : ""}</span>
+                      {!r.collected_settled && <>
+                        <button className="btn link small" onClick={() => openCollect(r)}>תיקון</button>
+                        <button className="btn link small" onClick={() => undoCollect(r)}>ביטול</button>
+                      </>}
+                    </div>
+                  )}
+                  {!cancelled && r.ride_date <= t && r.collected_amount == null && collectId !== r.id && (
+                    <button className={`btn small ${r.collect_amount ? "primary" : ""}`} onClick={() => openCollect(r)}>💵 גביתי מהלקוח</button>
+                  )}
+                  {collectId === r.id && (
+                    <div className="row">
+                      <input type="number" inputMode="decimal" step="0.01" min={0} style={{ maxWidth: 110 }} placeholder="סכום"
+                        value={collectAmount} onChange={(e) => setCollectAmount(e.target.value)} />
+                      <select className="inline-select" value={collectMethod} onChange={(e) => setCollectMethod(e.target.value)}>
+                        {Object.entries(PAYMENT_METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <button className="btn primary small" disabled={busyId === r.id} onClick={() => saveCollect(r)}>שמירה</button>
+                      <button className="btn small" onClick={() => setCollectId(null)}>ביטול</button>
+                    </div>
+                  )}
+                  {!cancelled && r.driver_token && r.ride_date >= t && (
                     <div className="row">
                       {r.driver_status !== "confirmed" && (
                         <button className="btn primary small" disabled={busyId === r.id} onClick={() => answer(r, "confirm")}>✓ מאשר</button>

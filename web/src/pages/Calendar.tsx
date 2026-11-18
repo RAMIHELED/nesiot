@@ -194,6 +194,7 @@ function DriversDay({ drivers, rides, date, absences, canEdit, onSent }: {
     passengers: r.passengers, notes: r.notes, driver_cost: r.driver_cost,
     customer_name: r.customer?.name, customer_phone: r.customer?.phone,
     response_url: r.driver_status !== "confirmed" && r.driver_token ? `${window.location.origin}/d/${r.driver_token}` : null,
+    collect_amount: (r as RideWithNames & { driver_collects?: boolean }).driver_collects ? r.price : null,
   })));
 
   // Opening WhatsApp counts as sending: rides wait for the driver's confirmation from now

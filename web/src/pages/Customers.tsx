@@ -23,6 +23,7 @@ type Payment = {
   method: string | null;
   note: string | null;
   ride_id: string | null;
+  collected_by?: string | null;
 };
 
 export const PAYMENT_METHODS: Record<string, string> = {
@@ -244,7 +245,7 @@ export function CustomerAccount({ customer, balance, onChange, canEdit }: { cust
   const [msg, setMsg] = useState<string | null>(null);
 
   const loadPayments = () =>
-    supabase.from("customer_payments").select("id, amount, paid_on, method, note, ride_id")
+    supabase.from("customer_payments").select("id, amount, paid_on, method, note, ride_id, collected_by")
       .eq("customer_id", customer.id).order("paid_on", { ascending: false }).limit(10)
       .then(({ data }) => setPayments((data ?? []) as Payment[]));
 
@@ -319,7 +320,7 @@ export function CustomerAccount({ customer, balance, onChange, canEdit }: { cust
             <div key={p.id} className="row between small">
               <span>
                 {shortDate(p.paid_on)} · {money(p.amount)} · {PAYMENT_METHODS[p.method ?? "other"] ?? ""}
-                {p.ride_id ? " · במקום" : ""}{p.note ? ` · ${p.note}` : ""}
+                {p.collected_by ? " · נגבה ע״י הנהג" : p.ride_id ? " · במקום" : ""}{p.note && !p.collected_by ? ` · ${p.note}` : ""}
               </span>
               {canEdit && <button type="button" className="btn link small" onClick={() => removePayment(p)}>מחיקה</button>}
             </div>

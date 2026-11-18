@@ -28,6 +28,7 @@ type Form = {
   driver_cost: string;
   notes: string;
   status: "active" | "cancelled";
+  driver_collects: boolean;
 };
 
 const emptyForm = (): Form => ({
@@ -47,6 +48,7 @@ const emptyForm = (): Form => ({
   driver_cost: "",
   notes: "",
   status: "active",
+  driver_collects: false,
 });
 
 const joinText = (base: string, add: string) => (base ? `${base}\n${add}` : add);
@@ -90,7 +92,9 @@ export default function RideForm() {
   const [saved, setSaved] = useState(!isNew);
   const [recurringId, setRecurringId] = useState<string | null>(null);
   // "Paid on the spot" payment for this ride, if any
-  const [ridePayment, setRidePayment] = useState<{ id: string; method: string | null; amount: number } | null>(null);
+  const [ridePayment, setRidePayment] = useState<{
+    id: string; method: string | null; amount: number; collected_by?: string | null; settled_at?: string | null;
+  } | null>(null);
   const [payMethod, setPayMethod] = useState("cash");
   // Driver confirmation (as saved in the database)
   type Confirm = Pick<Ride, "driver_id" | "driver_status" | "driver_token" | "driver_sent_at" | "driver_responded_at" | "declined_driver_ids">;
@@ -142,10 +146,11 @@ export default function RideForm() {
         driver_cost: r.driver_cost?.toString() ?? "",
         notes: r.notes ?? "",
         status: r.status,
+        driver_collects: !!(r as Ride & { driver_collects?: boolean }).driver_collects,
       });
       setSource(r.source_text ?? "");
       setRecurringId(r.recurring_id ?? null);
-      supabase.from("customer_payments").select("id, method, amount").eq("ride_id", r.id).maybeSingle()
+      supabase.from("customer_payments").select("id, method, amount, collected_by, settled_at").eq("ride_id", r.id).maybeSingle()
         .then(({ data }) => setRidePayment(data ? { ...data, amount: Number(data.amount) } : null));
       setConfirm({
         driver_id: r.driver_id, driver_status: r.driver_status ?? "none", driver_token: r.driver_token,
@@ -212,7 +217,7 @@ export default function RideForm() {
       return;
     }
     setForm((f) => ({ ...f, distance_km: String(data.distance_km), duration_min: String(data.duration_min ?? "") }));
-    if (!isNew && id && !force) {
+    if (!isNew && id && !force && saved) {
       // Existing ride opened without a distance: store it quietly, the ride stays "saved"
       await supabase.from("rides")
         .update({ distance_km: data.distance_km, duration_min: data.duration_min ?? null }).eq("id", id);
@@ -336,6 +341,7 @@ export default function RideForm() {
       notes: strOrNull(form.notes),
       status: form.status,
       source_text: strOrNull(source),
+      driver_collects: form.driver_collects,
     };
 
     const CONFIRM_COLS = "id, driver_id, driver_status, driver_token, driver_sent_at, driver_responded_at, declined_driver_ids";
@@ -420,6 +426,7 @@ export default function RideForm() {
     distance_km: numOrNull(form.distance_km),
     duration_min: numOrNull(form.duration_min),
     response_url: responseUrl,
+    collect_amount: form.driver_collects ? numOrNull(form.price) : null,
   });
 
   if (isNew && !canEdit) return <Navigate to="/" replace />;
@@ -551,12 +558,22 @@ export default function RideForm() {
           <label>עלות קבלן ₪<input type="number" step="0.01" inputMode="decimal" value={form.driver_cost} onChange={(e) => set("driver_cost", e.target.value)} /></label>
         )}
       </div>
+      {driver && form.status === "active" && (
+        <label className="row check small">
+          <input type="checkbox" checked={form.driver_collects} onChange={(e) => set("driver_collects", e.target.checked)} />
+          💵 הנהג גובה מהלקוח{form.price ? ` (${money(Number(form.price))})` : ""}
+        </label>
+      )}
       {hint && <p className="small muted">💡 {hint}</p>}
       {!isNew && saved && form.customer_id && form.price && form.status === "active" && (
         <div className="row small paid-line">
           {ridePayment ? (
             <>
-              <span className="ok-text">✓ שולם במקום ({PAYMENT_METHODS[ridePayment.method ?? "other"]}, {money(ridePayment.amount)})</span>
+              <span className="ok-text">
+                ✓ {ridePayment.collected_by ? `נגבה ע״י ${drivers.find((d) => d.id === ridePayment.collected_by)?.name ?? "הנהג"}` : "שולם במקום"}
+                {" "}({PAYMENT_METHODS[ridePayment.method ?? "other"]}, {money(ridePayment.amount)})
+                {ridePayment.collected_by ? (ridePayment.settled_at ? " · הוסדר" : " · אצל הנהג") : ""}
+              </span>
               <button type="button" className="btn link small" onClick={unmarkPaid}>ביטול</button>
             </>
           ) : (

@@ -16,6 +16,9 @@ export default function MonthEnd() {
   const [tab, setTab] = useState<Tab>("customers");
   const [rides, setRides] = useState<RideWithNames[]>([]);
   const [loading, setLoading] = useState(true);
+  // Payments drivers collected from customers, for this month's rides
+  type Collected = { id: string; ride_id: string; amount: number; method: string | null; collected_by: string; settled_at: string | null };
+  const [collected, setCollected] = useState<Collected[]>([]);
 
   const { from, to } = monthRange(month);
 
@@ -29,8 +32,15 @@ export default function MonthEnd() {
       .gte("ride_date", from)
       .lte("ride_date", to)
       .order("ride_date")
-      .then(({ data }) => {
-        setRides((data ?? []) as RideWithNames[]);
+      .then(async ({ data }) => {
+        const list = (data ?? []) as RideWithNames[];
+        setRides(list);
+        const ids = list.map((r) => r.id);
+        const { data: cp } = ids.length
+          ? await supabase.from("customer_payments").select("id, ride_id, amount, method, collected_by, settled_at")
+            .not("collected_by", "is", null).in("ride_id", ids)
+          : { data: [] };
+        setCollected(((cp ?? []) as Collected[]).map((p) => ({ ...p, amount: Number(p.amount) })));
         setLoading(false);
       });
   };
@@ -50,6 +60,10 @@ export default function MonthEnd() {
 
   const markBilled = async (ids: string[]) => {
     await supabase.from("rides").update({ billed_at: new Date().toISOString() }).in("id", ids);
+    load();
+  };
+  const settle = async (ids: string[]) => {
+    await supabase.from("customer_payments").update({ settled_at: new Date().toISOString() }).in("id", ids);
     load();
   };
   const markPaid = async (ids: string[]) => {
@@ -115,6 +129,11 @@ export default function MonthEnd() {
         const partial = to > t;
         const phone = (g.rides[0].driver as { phone?: string | null } | null)?.phone ?? null;
         const missing = done.filter((r) => !r.driver_cost).length;
+        const mine = collected.filter((p) => p.collected_by === g.key);
+        const held = mine.filter((p) => !p.settled_at);
+        const heldSum = held.reduce((s, p) => s + p.amount, 0);
+        const owed = sum(open, (r) => r.driver_cost);
+        const net = owed - heldSum;
         const expanded = openDriver === g.key;
         return (
           <div key={g.key} className="card stack">
@@ -126,12 +145,33 @@ export default function MonthEnd() {
               <span className="muted">{g.rides.length} נסיעות · {open.length} לא שולמו ({money(sum(open, (r) => r.driver_cost))})</span>
               {open.length > 0 && canEdit && <button className="btn small" onClick={() => markPaid(open.map((r) => r.id))}>סמן כשולם</button>}
             </div>
+            {mine.length > 0 && (
+              <div className="row between small">
+                <span>
+                  💵 גבה מלקוחות {money(mine.reduce((s, p) => s + p.amount, 0))}
+                  {heldSum > 0 ? ` · אצלו ${money(heldSum)}` : " · הכל הוסדר ✓"}
+                </span>
+                {heldSum > 0 && canEdit && (
+                  <button className="btn small" onClick={() => settle(held.map((p) => p.id))}>הכסף התקבל / קוזז</button>
+                )}
+              </div>
+            )}
+            {heldSum > 0 && (
+              <div className="small">
+                <strong className={net >= 0 ? "" : "debt-text"}>
+                  {net >= 0 ? `נטו לתשלום לנהג: ${money(net)}` : `נטו הנהג מעביר לך: ${money(-net)}`}
+                </strong>
+              </div>
+            )}
             {expanded && (
               <div className="stack small">
                 {g.rides.map((r) => (
                   <div key={r.id} className="row between">
                     <span>{r.ride_date.slice(8, 10)}/{r.ride_date.slice(5, 7)} {shortTime(r.ride_time)} · {r.pickup ?? "?"} ← {r.dropoff ?? "?"}</span>
-                    <span>{r.driver_cost ? money(r.driver_cost) : <span className="debt-text">חסר סכום</span>}{r.driver_paid_at ? " ✓" : ""}</span>
+                    <span>
+                      {r.driver_cost ? money(r.driver_cost) : <span className="debt-text">חסר סכום</span>}{r.driver_paid_at ? " ✓" : ""}
+                      {mine.find((p) => p.ride_id === r.id) ? ` · 💵 גבה ${money(mine.find((p) => p.ride_id === r.id)!.amount)}` : ""}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -139,7 +179,7 @@ export default function MonthEnd() {
             {canEdit && done.length > 0 && (
               <div className="row">
                 <a className="btn small" target="_blank" rel="noreferrer"
-                  href={waLink(phone, driverStatementMessage(g.name, org?.name ?? "", month, done, partial))}>
+                  href={waLink(phone, driverStatementMessage(g.name, org?.name ?? "", month, done, partial, heldSum))}>
                   💬 שליחת ריכוז לנהג
                 </a>
                 {!toWaPhone(phone) && <span className="small muted">אין טלפון: וואטסאפ ייפתח לבחירת איש קשר</span>}
