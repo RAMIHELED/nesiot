@@ -187,3 +187,4 @@ fieldset.plain:disabled input, fieldset.plain:disabled select, fieldset.plain:di
 .month-head { border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-top: 6px; }
 .card.cancelled { opacity: 0.55; }
 .card.cancelled strong { text-decoration: line-through; }
+.center-text { text-align: center; }

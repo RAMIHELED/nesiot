@@ -3,7 +3,11 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../supabase";
 
 export type Role = "owner" | "member" | "viewer" | "driver";
-type Org = { id: string; name: string; role: Role; driver_id: string | null };
+type Org = {
+  id: string; name: string; role: Role; driver_id: string | null;
+  /** Subscription: false = trial ended or paused (the database hides the data) */
+  is_open: boolean; plan_status: string | null; trial_ends: string | null;
+};
 
 type Ctx = {
   session: Session | null;
@@ -50,12 +54,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .from("memberships")
       .select("role, driver_id, organizations(id, name)")
       .eq("user_id", session.user.id)
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
         if (error) console.error(error);
+        // Before migration 0017 this function does not exist: treat everything as open
+        const { data: acc } = await supabase.rpc("my_org_access");
+        type Access = { org_id: string; is_open: boolean; plan_status: string; trial_ends: string | null };
+        const access = new Map(((acc ?? []) as Access[]).map((a) => [a.org_id, a]));
         type Row = { role: Role; driver_id: string | null; organizations: { id: string; name: string } | null };
         const list = ((data ?? []) as unknown as Row[])
           .filter((r) => r.organizations)
-          .map((r) => ({ id: r.organizations!.id, name: r.organizations!.name, role: r.role, driver_id: r.driver_id ?? null }));
+          .map((r) => {
+            const a = access.get(r.organizations!.id);
+            return {
+              id: r.organizations!.id, name: r.organizations!.name, role: r.role, driver_id: r.driver_id ?? null,
+              is_open: a ? a.is_open : true, plan_status: a?.plan_status ?? null, trial_ends: a?.trial_ends ?? null,
+            };
+          });
         setOrgs(list);
         setLoading(false);
       });

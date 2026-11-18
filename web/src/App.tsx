@@ -15,12 +15,13 @@ import Settings from "./pages/Settings";
 import DriverResponse from "./pages/DriverResponse";
 import VacationsPage from "./pages/VacationsPage";
 import DriverLayout from "./components/DriverLayout";
+import AccountClosed from "./components/AccountClosed";
 import MyRides from "./pages/driver/MyRides";
 import MyPay from "./pages/driver/MyPay";
 import MyVacations from "./pages/driver/MyVacations";
 
 export default function App() {
-  const { session, loading, org, signOut } = useSession();
+  const { session, loading, org, signOut, isAdmin } = useSession();
   const location = useLocation();
 
   // Public page for drivers (no login): /d/<token>
@@ -42,6 +43,9 @@ export default function App() {
       </div>
     );
   }
+
+  // Trial ended or business paused: the database hides the data, explain instead of showing empty screens
+  if (!org.is_open && !isAdmin) return <AccountClosed />;
 
   // Drivers get their own small app: only their rides, payments and vacations
   if (org.role === "driver") {

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { supabase } from "../supabase";
+import { contactLink } from "../lib/contact";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,7 +16,7 @@ export default function Login() {
     // shouldCreateUser:false → only invited users can sign in
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { shouldCreateUser: false },
+      options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
     });
     setBusy(false);
     if (!error) return setStep("code");
@@ -57,7 +58,7 @@ export default function Login() {
         </form>
       ) : (
         <form onSubmit={verify} className="stack">
-          <p>שלחנו קוד ל-<span dir="ltr">{email}</span></p>
+          <p>שלחנו מייל ל-<span dir="ltr">{email}</span>. לחצו על הקישור במייל, או הקלידו כאן את הקוד אם יש במייל קוד.</p>
           <label>
             קוד
             <input inputMode="numeric" dir="ltr" required autoComplete="one-time-code"
@@ -68,6 +69,15 @@ export default function Login() {
         </form>
       )}
       {error && <p className="error">{error}</p>}
+
+      <div className="panel stack center-text">
+        <strong>אין לכם עדיין חשבון?</strong>
+        <span className="small muted">מערכת לסדרנים ולבעלי מוניות: נסיעות, נהגים, לקוחות ותשלומים. שבוע ניסיון בחינם.</span>
+        <a className="btn" target="_blank" rel="noreferrer"
+          href={contactLink("היי, אשמח לנסות את מערכת ניהול הנסיעות.\nשם העסק: \nהמייל שלי: " + (email.trim() || ""))}>
+          💬 בקשת גישה בוואטסאפ
+        </a>
+      </div>
     </div>
   );
 }

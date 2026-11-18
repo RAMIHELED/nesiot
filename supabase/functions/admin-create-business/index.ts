@@ -28,6 +28,13 @@ Deno.serve(async (req) => {
   const ownerName = String(body.owner_name ?? "").trim();
   const ownerPhone = String(body.owner_phone ?? "").trim() || null;
   const addMe = body.add_me !== false;
+  // Trial: open for N days, then closes unless a payment is recorded (0 / empty = no end date)
+  const trialDays = Number(body.trial_days ?? 7);
+  const price = body.monthly_price === "" || body.monthly_price == null ? null : Number(body.monthly_price);
+  const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
+  const trialEnds = trialDays > 0
+    ? new Date(today.getTime() + trialDays * 864e5).toLocaleDateString("en-CA")
+    : null;
   if (!name) return json({ error: "חסר שם עסק" }, 400);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "מייל בעלים לא תקין" }, 400);
 
@@ -36,7 +43,9 @@ Deno.serve(async (req) => {
   const { data: dup } = await admin.from("organizations").select("id").eq("name", name).maybeSingle();
   if (dup) return json({ error: `כבר קיים עסק בשם "${name}"` }, 409);
 
-  const { data: org, error: orgErr } = await admin.from("organizations").insert({ name }).select("id").single();
+  const { data: org, error: orgErr } = await admin.from("organizations")
+    .insert({ name, plan_status: "trial", trial_ends: trialEnds, monthly_price: price })
+    .select("id").single();
   if (orgErr || !org) return json({ error: orgErr?.message ?? "יצירת העסק נכשלה" }, 400);
 
   // Undo the business if a later step fails, so no half-open business is left behind
@@ -69,5 +78,5 @@ Deno.serve(async (req) => {
       .upsert({ org_id: org.id, user_id: me.user.id, role: "member", email: me.user.email?.toLowerCase() ?? null });
   }
 
-  return json({ ok: true, org_id: org.id, owner_existed: ownerExisted });
+  return json({ ok: true, org_id: org.id, owner_existed: ownerExisted, trial_ends: trialEnds });
 });
