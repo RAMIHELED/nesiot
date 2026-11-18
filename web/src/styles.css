@@ -89,10 +89,10 @@ textarea { resize: vertical; }
 .card.tag-self { border-inline-start-color: var(--self); background: #eaf7ee; }
 .card.tag-contractor { border-inline-start-color: var(--contractor); background: #f3eefc; }
 .card.tag-cancelled { opacity: 0.5; text-decoration: line-through; }
+.badge { font-size: 0.8rem; background: var(--bg); border-radius: 999px; padding: 2px 10px; }
 .badge-unassigned { background: var(--warn); color: #3d2e00; font-weight: 600; }
 .badge-self { background: var(--self); color: #fff; }
 .badge-contractor { background: var(--contractor); color: #fff; }
-.badge { font-size: 0.8rem; background: var(--bg); border-radius: 999px; padding: 2px 10px; }
 
 .sticky { position: sticky; bottom: 72px; background: var(--bg); padding: 8px 0; }
 
