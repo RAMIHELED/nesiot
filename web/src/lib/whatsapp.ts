@@ -81,6 +81,40 @@ export function scheduleMessage(driverName: string, date: string, rides: Schedul
   ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n").trim();
 }
 
+export type PayRide = {
+  ride_date: string;
+  ride_time: string | null;
+  pickup: string | null;
+  dropoff: string | null;
+  driver_cost: number | null;
+  driver_paid_at: string | null;
+};
+
+/** Monthly statement for a contractor: his rides, the total, what was paid and what is left */
+export function driverStatementMessage(driverName: string, orgName: string, month: string, rides: PayRide[], partial: boolean): string {
+  const [y, m] = month.split("-");
+  const total = rides.reduce((s, r) => s + Number(r.driver_cost ?? 0), 0);
+  const paid = rides.filter((r) => r.driver_paid_at).reduce((s, r) => s + Number(r.driver_cost ?? 0), 0);
+  const nis = (n: number) => `${n.toLocaleString("he-IL", { maximumFractionDigits: 2 })} ₪`;
+  const lines = rides.map((r) => {
+    const [, mm, dd] = r.ride_date.split("-");
+    const route = [r.pickup, r.dropoff].filter(Boolean).join(" ← ") || "נסיעה";
+    const amount = r.driver_cost ? nis(Number(r.driver_cost)) : "סכום לא נקבע";
+    return `• ${dd}/${mm}${r.ride_time ? ` ${shortTime(r.ride_time)}` : ""} · ${route} · ${amount}${r.driver_paid_at ? " ✓" : ""}`;
+  });
+  return [
+    `שלום ${driverName},`,
+    `ריכוז הנסיעות שלך ב${orgName} לחודש ${Number(m)}/${y}${partial ? " (עד היום)" : ""}:`,
+    "",
+    ...lines,
+    "",
+    `${rides.length} נסיעות · סה״כ ${nis(total)}`,
+    paid > 0 ? `שולם: ${nis(paid)} · נותר לתשלום: ${nis(total - paid)}` : "",
+    paid > 0 ? "✓ = שולם" : "",
+    "אם משהו לא מסתדר לך, תגיד לי 🙏",
+  ].filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");
+}
+
 export function waLink(phone: string | null, text: string): string {
   const p = toWaPhone(phone);
   const q = encodeURIComponent(text);

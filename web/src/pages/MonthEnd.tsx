@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
-import { useCanEdit, useOrgId } from "../lib/session";
+import { useCanEdit, useOrgId, useSession } from "../lib/session";
+import { driverStatementMessage, toWaPhone, waLink } from "../lib/whatsapp";
 import { money, monthRange, shortTime, today } from "../lib/format";
 import type { RideWithNames } from "../types";
 
@@ -9,6 +10,8 @@ type Tab = "customers" | "drivers" | "profit";
 export default function MonthEnd() {
   const orgId = useOrgId();
   const canEdit = useCanEdit();
+  const { org } = useSession();
+  const [openDriver, setOpenDriver] = useState<string | null>(null);
   const [month, setMonth] = useState(today().slice(0, 7));
   const [tab, setTab] = useState<Tab>("customers");
   const [rides, setRides] = useState<RideWithNames[]>([]);
@@ -20,7 +23,7 @@ export default function MonthEnd() {
     setLoading(true);
     return supabase
       .from("rides")
-      .select("*, customer:customers(name), driver:drivers(name, is_self)")
+      .select("*, customer:customers(name), driver:drivers(name, is_self, phone)")
       .eq("org_id", orgId)
       .eq("status", "active")
       .gte("ride_date", from)
@@ -104,18 +107,45 @@ export default function MonthEnd() {
         );
       })}
 
+      {tab === "drivers" && byDriver.length === 0 && !loading && <p className="muted">אין נסיעות של קבלנים בחודש הזה.</p>}
       {tab === "drivers" && byDriver.map((g) => {
         const open = g.rides.filter((r) => !r.driver_paid_at);
+        const t = today();
+        const done = g.rides.filter((r) => r.ride_date <= t);
+        const partial = to > t;
+        const phone = (g.rides[0].driver as { phone?: string | null } | null)?.phone ?? null;
+        const missing = done.filter((r) => !r.driver_cost).length;
+        const expanded = openDriver === g.key;
         return (
-          <div key={g.key} className="card">
-            <div className="row between">
-              <strong>{g.name}</strong>
+          <div key={g.key} className="card stack">
+            <div className="row between clickable" onClick={() => setOpenDriver(expanded ? null : g.key)}>
+              <strong>{expanded ? "▾" : "◂"} {g.name}</strong>
               <span>{money(sum(g.rides, (r) => r.driver_cost))}</span>
             </div>
             <div className="row between small">
               <span className="muted">{g.rides.length} נסיעות · {open.length} לא שולמו ({money(sum(open, (r) => r.driver_cost))})</span>
               {open.length > 0 && canEdit && <button className="btn small" onClick={() => markPaid(open.map((r) => r.id))}>סמן כשולם</button>}
             </div>
+            {expanded && (
+              <div className="stack small">
+                {g.rides.map((r) => (
+                  <div key={r.id} className="row between">
+                    <span>{r.ride_date.slice(8, 10)}/{r.ride_date.slice(5, 7)} {shortTime(r.ride_time)} · {r.pickup ?? "?"} ← {r.dropoff ?? "?"}</span>
+                    <span>{r.driver_cost ? money(r.driver_cost) : <span className="debt-text">חסר סכום</span>}{r.driver_paid_at ? " ✓" : ""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {canEdit && done.length > 0 && (
+              <div className="row">
+                <a className="btn small" target="_blank" rel="noreferrer"
+                  href={waLink(phone, driverStatementMessage(g.name, org?.name ?? "", month, done, partial))}>
+                  💬 שליחת ריכוז לנהג
+                </a>
+                {!toWaPhone(phone) && <span className="small muted">אין טלפון: וואטסאפ ייפתח לבחירת איש קשר</span>}
+                {missing > 0 && <span className="small debt-text">⚠️ ב-{missing} נסיעות חסר סכום לנהג</span>}
+              </div>
+            )}
           </div>
         );
       })}
