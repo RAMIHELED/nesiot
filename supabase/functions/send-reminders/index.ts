@@ -143,7 +143,13 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return json({ error: "VAPID keys are not set" }, 500);
 
-  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+  } catch (err) {
+    // Usually a VAPID key pasted with quotes, spaces or swapped public/private
+    console.error(err);
+    return json({ error: `מפתחות VAPID לא תקינים: ${(err as Error).message}` }, 500);
+  }
 
   // 1. Scheduled run
   const cronHeader = req.headers.get("x-cron-secret");

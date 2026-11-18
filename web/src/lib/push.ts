@@ -84,6 +84,11 @@ export async function disablePush(): Promise<PushState> {
 
 export async function sendTestPush() {
   const { data, error } = await supabase.functions.invoke("send-reminders", { body: { test: true } });
-  if (error) throw error;
+  if (error) {
+    // Show the function's own error message instead of the generic "non-2xx"
+    const ctx = (error as { context?: Response }).context;
+    const detail = ctx ? await ctx.json().then((b) => b?.error).catch(() => null) : null;
+    throw new Error(detail || error.message);
+  }
   return data as { devices: number; sent: number };
 }
