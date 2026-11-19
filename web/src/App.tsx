@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 import Calendar from "./pages/Calendar";
 import RideForm from "./pages/RideForm";
 import Customers from "./pages/Customers";
@@ -34,7 +35,8 @@ export default function App() {
   }
 
   if (loading) return <div className="center muted">טוען…</div>;
-  if (!session) return <Login />;
+  // Visitors: the sales page at "/", the login at /login (and anywhere else)
+  if (!session) return location.pathname === "/" ? <Landing /> : <Login />;
   if (!org) {
     return (
       <div className="center">

@@ -1,0 +1,70 @@
+/* Sales page – self-contained, does not touch the app styles */
+.lp { --ink: #0f172a; --muted: #475569; --blue: #2563eb; --blue-d: #1d4ed8; --green: #16a34a; --bg2: #f1f5fb;
+  color: var(--ink); background: #fff; font-size: 17px; line-height: 1.6; min-height: 100vh; }
+.lp * { box-sizing: border-box; }
+.lp h1, .lp h2, .lp h3 { line-height: 1.2; margin: 0 0 14px; }
+.lp h2 { font-size: 30px; text-align: center; }
+.lp section { padding: 56px 20px; max-width: 1080px; margin: 0 auto; }
+
+.lp-top { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; max-width: 1080px; margin: 0 auto; }
+.lp-logo { font-weight: 800; font-size: 24px; color: var(--blue); }
+.lp-login { color: var(--blue); text-decoration: none; font-weight: 600; }
+
+.lp-hero { display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; padding-top: 24px !important; }
+.lp-hero h1 { font-size: 46px; font-weight: 800; letter-spacing: -0.5px; }
+.lp-lead { font-size: 20px; color: var(--muted); margin: 0 0 26px; }
+.lp-cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.lp-cta { display: inline-block; background: var(--green); color: #fff; text-decoration: none; font-weight: 700;
+  padding: 14px 26px; border-radius: 12px; font-size: 18px; box-shadow: 0 8px 20px rgba(22,163,74,.25); }
+.lp-cta:hover { filter: brightness(1.05); }
+.lp-cta-ghost { display: inline-block; padding: 14px 22px; border-radius: 12px; border: 2px solid #cbd5e1; color: var(--ink);
+  text-decoration: none; font-weight: 600; }
+.lp-note { color: var(--muted); font-size: 14px; margin-top: 12px; }
+
+.lp-hero-phone, .lp-phone { justify-self: center; }
+.lp-hero-phone img, .lp-phone img { display: block; width: 280px; max-width: 100%; border-radius: 32px; border: 10px solid #111827;
+  box-shadow: 0 30px 60px rgba(15,23,42,.22); }
+
+.lp-pains { background: var(--bg2); border-radius: 24px; }
+.lp-pains ul { list-style: none; padding: 0; margin: 20px auto 0; max-width: 640px; }
+.lp-pains li { background: #fff; border-radius: 14px; padding: 14px 18px; margin-bottom: 10px; position: relative; padding-right: 46px; }
+.lp-pains li::before { content: "✕"; position: absolute; right: 16px; color: #dc2626; font-weight: 700; }
+
+.lp-feature { display: grid; grid-template-columns: 1fr 1.2fr; gap: 40px; align-items: center; margin-bottom: 56px; }
+.lp-feature.rev .lp-phone { order: 2; }
+.lp-feature h3 { font-size: 26px; }
+.lp-feature p { color: var(--muted); font-size: 18px; margin: 0; }
+
+.lp-video { text-align: center; }
+.lp-video video { width: 100%; max-width: 900px; border-radius: 18px; box-shadow: 0 20px 50px rgba(15,23,42,.18); background: #000; }
+
+.lp-steps ol { list-style: none; padding: 0; counter-reset: s; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
+.lp-steps li { counter-increment: s; background: var(--bg2); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 4px; }
+.lp-steps li::before { content: counter(s); width: 38px; height: 38px; border-radius: 50%; background: var(--blue); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 700; margin-bottom: 8px; }
+.lp-steps span { color: var(--muted); }
+
+.lp-price { display: flex; justify-content: center; }
+.lp-price-card { border: 2px solid var(--blue); border-radius: 22px; padding: 30px; max-width: 420px; width: 100%; text-align: center; }
+.lp-price-label { color: var(--blue); font-weight: 700; }
+.lp-price-num { font-size: 20px; margin: 6px 0 16px; }
+.lp-price-num b { font-size: 48px; }
+.lp-price-card ul { text-align: right; padding-right: 20px; margin: 0 0 22px; }
+.lp-price-card li { margin-bottom: 6px; }
+
+.lp-faq { max-width: 720px !important; }
+.lp-faq details { border-bottom: 1px solid #e2e8f0; padding: 14px 0; }
+.lp-faq summary { font-weight: 700; cursor: pointer; }
+.lp-faq p { color: var(--muted); margin: 8px 0 0; }
+
+.lp-foot { text-align: center; padding: 40px 20px 60px; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+
+@media (max-width: 760px) {
+  .lp section { padding: 40px 18px; }
+  .lp-hero, .lp-feature { grid-template-columns: 1fr; gap: 24px; }
+  .lp-hero h1 { font-size: 34px; }
+  .lp-feature.rev .lp-phone { order: 0; }
+  .lp-feature { margin-bottom: 40px; text-align: center; }
+  .lp-hero-phone img, .lp-phone img { width: 240px; }
+  .lp-steps ol { grid-template-columns: 1fr; }
+}

@@ -77,6 +77,7 @@ export default function Login() {
           href={contactLink("היי, אשמח לנסות את מערכת ניהול הנסיעות.\nשם העסק: \nהמייל שלי: " + (email.trim() || ""))}>
           💬 בקשת גישה בוואטסאפ
         </a>
+        <a className="btn link small" href="/">מה המערכת יודעת לעשות?</a>
       </div>
     </div>
   );
