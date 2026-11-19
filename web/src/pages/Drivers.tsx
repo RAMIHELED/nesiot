@@ -218,7 +218,7 @@ export default function Drivers() {
                 {d.phone && <span dir="ltr">{d.phone}</span>}
                 {` · ${d.seats} מקומות`}
                 {d.car_model ? ` · ${d.car_model}` : ""}
-                {d.car_plate ? ` · ${d.car_plate}` : ""}
+                {d.car_plate ? <> · <bdi dir="ltr">{d.car_plate}</bdi></> : ""}
               </span>
               {d.notes && <span className="small muted">{d.notes}</span>}
               <div className="vac-row" onClick={(e) => e.stopPropagation()}>

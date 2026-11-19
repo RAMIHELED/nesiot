@@ -139,7 +139,7 @@ export function customerDriverMessage(p: {
   car_model: string | null | undefined;
   car_plate: string | null | undefined;
 }): string {
-  const car = [p.car_model, p.car_plate ? `מס׳ ${p.car_plate}` : ""].filter(Boolean).join(" · ");
+  const car = [p.car_model, p.car_plate ? `מס׳ ${ltr(p.car_plate)}` : ""].filter(Boolean).join(" · ");
   return [
     `שלום${p.customer_name ? ` ${p.customer_name}` : ""},`,
     `פרטי הנסיעה שלך מ${p.org_name}:`,
@@ -170,7 +170,7 @@ export type ReminderRide = {
 /** Reminder to a customer about their rides on one day (usually tomorrow) */
 export function customerReminderMessage(customerName: string, orgName: string, date: string, rides: ReminderRide[]): string {
   const blocks = rides.map((r) => {
-    const car = [r.car_model, r.car_plate ? `מס׳ ${r.car_plate}` : ""].filter(Boolean).join(" · ");
+    const car = [r.car_model, r.car_plate ? `מס׳ ${ltr(r.car_plate)}` : ""].filter(Boolean).join(" · ");
     return [
       `🕐 ${r.ride_time ? shortTime(r.ride_time) : "שעה תתואם"}`,
       r.pickup ? `📍 איסוף: ${r.pickup}` : "",
@@ -189,6 +189,11 @@ export function customerReminderMessage(customerName: string, orgName: string, d
     "",
     "אם משהו השתנה (שעה, כתובת, מספר נוסעים) נא לעדכן אותנו 🙏",
   ].join("\n");
+}
+
+/** Keeps a number with dashes (car plate) in its order inside Hebrew text, also in WhatsApp */
+function ltr(t: string): string {
+  return `\u2066${t}\u2069`;
 }
 
 export function waLink(phone: string | null, text: string): string {
