@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-r
 import { supabase } from "../supabase";
 import { useCanEdit, useOrgId, useSession } from "../lib/session";
 import { money, today } from "../lib/format";
+import { flightLabel } from "../lib/flight";
 import { customerDriverMessage, rideMessage, waLink } from "../lib/whatsapp";
 import { driverAvailability, hhmm, interval, type Availability, type TimedRide } from "../lib/availability";
 import VoiceButton from "../components/VoiceButton";
@@ -28,6 +29,7 @@ type Form = {
   driver_cost: string;
   notes: string;
   status: "active" | "cancelled";
+  driver_collects: boolean;
 };
 
 const emptyForm = (): Form => ({
@@ -47,6 +49,7 @@ const emptyForm = (): Form => ({
   driver_cost: "",
   notes: "",
   status: "active",
+  driver_collects: false,
 });
 
 const joinText = (base: string, add: string) => (base ? `${base}\n${add}` : add);
@@ -90,7 +93,13 @@ export default function RideForm() {
   const [saved, setSaved] = useState(!isNew);
   const [recurringId, setRecurringId] = useState<string | null>(null);
   // "Paid on the spot" payment for this ride, if any
-  const [ridePayment, setRidePayment] = useState<{ id: string; method: string | null; amount: number } | null>(null);
+  // Flight status from the airport (saved on the ride by the server)
+  const [flight, setFlight] = useState<Parameters<typeof flightLabel>[0] | null>(null);
+  const [flightBusy, setFlightBusy] = useState(false);
+  const [flightMsg, setFlightMsg] = useState<string | null>(null);
+  const [ridePayment, setRidePayment] = useState<{
+    id: string; method: string | null; amount: number; collected_by?: string | null; settled_at?: string | null;
+  } | null>(null);
   const [payMethod, setPayMethod] = useState("cash");
   // Driver confirmation (as saved in the database)
   type Confirm = Pick<Ride, "driver_id" | "driver_status" | "driver_token" | "driver_sent_at" | "driver_responded_at" | "declined_driver_ids">;
@@ -142,10 +151,12 @@ export default function RideForm() {
         driver_cost: r.driver_cost?.toString() ?? "",
         notes: r.notes ?? "",
         status: r.status,
+        driver_collects: !!(r as Ride & { driver_collects?: boolean }).driver_collects,
       });
+      setFlight(r);
       setSource(r.source_text ?? "");
       setRecurringId(r.recurring_id ?? null);
-      supabase.from("customer_payments").select("id, method, amount").eq("ride_id", r.id).maybeSingle()
+      supabase.from("customer_payments").select("id, method, amount, collected_by, settled_at").eq("ride_id", r.id).maybeSingle()
         .then(({ data }) => setRidePayment(data ? { ...data, amount: Number(data.amount) } : null));
       setConfirm({
         driver_id: r.driver_id, driver_status: r.driver_status ?? "none", driver_token: r.driver_token,
@@ -250,12 +261,34 @@ export default function RideForm() {
     setPriceListMsg(error ? `שגיאה: ${error.message}` : same ? "עודכן במחירון ✓" : "נשמר במחירון ✓");
   };
 
+  const checkFlight = async () => {
+    if (!id) return;
+    setFlightBusy(true);
+    setFlightMsg(null);
+    const { data, error } = await supabase.functions.invoke("flight-check", { body: { ride_id: id } });
+    setFlightBusy(false);
+    if (error) {
+      const ctx = (error as { context?: Response }).context;
+      const detail = ctx ? await ctx.json().then((b) => b?.error).catch(() => null) : null;
+      return setFlightMsg(detail || "הבדיקה נכשלה");
+    }
+    if (!data.found) return setFlightMsg("הטיסה לא נמצאה בנתוני נתב״ג להיום ולמחר");
+    setFlight({
+      flight_status: data.status, flight_status_he: data.status_he,
+      flight_scheduled: data.scheduled, flight_estimated: data.estimated,
+      flight_direction: data.direction ?? null,
+    });
+  };
+
   const markPaid = async () => {
     if (!id || !form.customer_id || !form.price) return;
     const { data, error } = await supabase.from("customer_payments").insert({
       org_id: orgId, customer_id: form.customer_id, ride_id: id, amount: Number(form.price), method: payMethod,
       paid_on: form.ride_date <= today() ? form.ride_date : today(),
-    }).select("id, method, amount").single();
+      // Ride marked "driver collects" with a contractor: the money is with the driver until settled
+      collected_by: form.driver_collects && driver && !driver.is_self ? driver.id : null,
+      note: form.driver_collects && driver && !driver.is_self ? "נגבה ע״י הנהג" : null,
+    }).select("id, method, amount, collected_by, settled_at").single();
     if (error) return setError(error.message);
     setRidePayment({ ...data, amount: Number(data.amount) });
   };
@@ -336,6 +369,7 @@ export default function RideForm() {
       notes: strOrNull(form.notes),
       status: form.status,
       source_text: strOrNull(source),
+      driver_collects: form.driver_collects,
     };
 
     const CONFIRM_COLS = "id, driver_id, driver_status, driver_token, driver_sent_at, driver_responded_at, declined_driver_ids";
@@ -420,6 +454,7 @@ export default function RideForm() {
     distance_km: numOrNull(form.distance_km),
     duration_min: numOrNull(form.duration_min),
     response_url: responseUrl,
+    collect_amount: form.driver_collects ? numOrNull(form.price) : null,
   });
 
   if (isNew && !canEdit) return <Navigate to="/" replace />;
@@ -490,6 +525,18 @@ export default function RideForm() {
         <label>נוסעים<input type="number" min={1} inputMode="numeric" value={form.passengers} onChange={(e) => set("passengers", e.target.value)} /></label>
       </div>
 
+      {!isNew && form.flight_number.trim() && (
+        <div className="row small flight-row">
+          {flight && flightLabel(flight)
+            ? <span className={`flight-${flightLabel(flight)!.tone}`}>{flightLabel(flight)!.text}</span>
+            : <span className="muted">✈️ סטטוס הטיסה עוד לא נבדק</span>}
+          <button type="button" className="btn link small" disabled={flightBusy} onClick={checkFlight}>
+            {flightBusy ? "בודק…" : "בדיקה עכשיו"}
+          </button>
+          {flightMsg && <span className="muted">{flightMsg}</span>}
+        </div>
+      )}
+
       <label>
         נהג
         <select value={form.driver_id} onChange={(e) => set("driver_id", e.target.value)}>
@@ -551,12 +598,22 @@ export default function RideForm() {
           <label>עלות קבלן ₪<input type="number" step="0.01" inputMode="decimal" value={form.driver_cost} onChange={(e) => set("driver_cost", e.target.value)} /></label>
         )}
       </div>
+      {driver && form.status === "active" && (
+        <label className="row check small">
+          <input type="checkbox" checked={form.driver_collects} onChange={(e) => set("driver_collects", e.target.checked)} />
+          💵 הנהג גובה מהלקוח{form.price ? ` (${money(Number(form.price))})` : ""}
+        </label>
+      )}
       {hint && <p className="small muted">💡 {hint}</p>}
       {!isNew && saved && form.customer_id && form.price && form.status === "active" && (
         <div className="row small paid-line">
           {ridePayment ? (
             <>
-              <span className="ok-text">✓ שולם במקום ({PAYMENT_METHODS[ridePayment.method ?? "other"]}, {money(ridePayment.amount)})</span>
+              <span className="ok-text">
+                ✓ {ridePayment.collected_by ? `נגבה ע״י ${drivers.find((d) => d.id === ridePayment.collected_by)?.name ?? "הנהג"}` : "שולם במקום"}
+                {" "}({PAYMENT_METHODS[ridePayment.method ?? "other"]}, {money(ridePayment.amount)})
+                {ridePayment.collected_by ? (ridePayment.settled_at ? " · הוסדר" : " · אצל הנהג") : ""}
+              </span>
               <button type="button" className="btn link small" onClick={unmarkPaid}>ביטול</button>
             </>
           ) : (
@@ -565,7 +622,9 @@ export default function RideForm() {
               <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="inline-select">
                 {Object.entries(PAYMENT_METHODS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
-              <button type="button" className="btn small" onClick={markPaid}>✓ שולם במקום</button>
+              <button type="button" className="btn small" onClick={markPaid}>
+                {form.driver_collects && driver && !driver.is_self ? `✓ ${driver.name} גבה` : "✓ שולם במקום"}
+              </button>
             </>
           )}
         </div>

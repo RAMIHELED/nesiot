@@ -8,6 +8,7 @@
 // (the function checks the cron secret / user token itself)
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import { refreshRideFlight, type RideFlight } from "../_shared/flights.ts";
 import { corsHeaders, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -138,6 +139,27 @@ async function runDigests() {
   return { orgs: orgs?.length ?? 0, sent };
 }
 
+// Flight status for airport rides of yesterday-tomorrow; notify the business on delay / cancel / landing
+async function runFlights() {
+  const { data: rides, error } = await admin.rpc("due_flight_checks");
+  if (error) throw error;
+  let checked = 0, alerts = 0;
+  for (const r of (rides ?? []) as RideFlight[]) {
+    try {
+      const res = await refreshRideFlight(admin, r);
+      checked++;
+      if (res.alert) {
+        const { data } = await admin.rpc("org_push_targets", { p_org: r.org_id });
+        alerts += await push((data ?? []) as Target[], { ...res.alert, url: `/rides/${r.id}`, tag: `flight-${r.id}` });
+      }
+    } catch (err) {
+      console.error("flight check failed", r.flight_number, (err as Error).message);
+      break; // the airport feed is down: try again next run
+    }
+  }
+  return { rides: rides?.length ?? 0, checked, alerts };
+}
+
 // Once a day (from 09:00): tell the platform admin which businesses need a payment reminder
 async function runAdminAlerts() {
   const { data: rows, error } = await admin.rpc("due_admin_alerts");
@@ -183,8 +205,9 @@ Deno.serve(async (req) => {
       const digests = await runDigests();
       const unconfirmed = await runUnconfirmed().catch((err) => ({ error: (err as Error).message }));
       // Before migration 0018 the function is missing: skip quietly
+      const flights = await runFlights().catch((err) => ({ error: (err as Error).message }));
       const adminAlerts = await runAdminAlerts().catch((err) => ({ error: (err as Error).message }));
-      return json({ ok: true, reminders, digests, unconfirmed, adminAlerts });
+      return json({ ok: true, reminders, digests, unconfirmed, flights, adminAlerts });
     } catch (err) {
       console.error(err);
       return json({ error: (err as Error).message }, 500);

@@ -4,6 +4,7 @@ import { supabase } from "../supabase";
 import { useCanEdit, useOrgId, useSession } from "../lib/session";
 import { addDays, dayLabel, money, shortTime, today } from "../lib/format";
 import { hhmm, interval } from "../lib/availability";
+import { flightLabel } from "../lib/flight";
 import { customerReminderMessage, scheduleMessage, toWaPhone, waLink } from "../lib/whatsapp";
 import { absenceOf, allOff, loadAbsences, type Absence } from "../lib/absences";
 import type { Driver, RideWithNames } from "../types";
@@ -149,6 +150,9 @@ export default function Calendar() {
                       </span>
                     </div>
                     <div>{r.pickup ?? "?"} ← {r.dropoff ?? "?"}</div>
+                    {flightLabel(r) && (
+                      <div className={`small flight-${flightLabel(r)!.tone}`}>{flightLabel(r)!.text}</div>
+                    )}
                     {tag === "unassigned" && r.driver_status === "declined" && r.declined_driver_ids?.length > 0 && (
                       <div className="small declined">✗ {r.declined_driver_ids.map(driverName).filter(Boolean).join(", ")} סירב</div>
                     )}

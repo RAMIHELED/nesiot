@@ -47,6 +47,12 @@ export type Ride = {
   driver_sent_at: string | null;
   driver_responded_at: string | null;
   declined_driver_ids: string[];
+  flight_status?: string | null;
+  flight_status_he?: string | null;
+  flight_direction?: string | null;
+  flight_scheduled?: string | null;
+  flight_estimated?: string | null;
+  flight_checked_at?: string | null;
 };
 
 export type RideWithNames = Ride & {

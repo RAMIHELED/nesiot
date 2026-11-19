@@ -189,3 +189,10 @@ fieldset.plain:disabled input, fieldset.plain:disabled select, fieldset.plain:di
 .card.cancelled strong { text-decoration: line-through; }
 .center-text { text-align: center; }
 .attention-row { border-top: 1px solid var(--line); padding-top: 10px; }
+
+/* Flight status */
+.flight-ok { color: #15803d; }
+.flight-warn { color: #b45309; font-weight: 600; }
+.flight-bad { color: #b91c1c; font-weight: 700; }
+.flight-info { color: #475569; }
+.flight-row { margin-top: -6px; }
