@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
   const ownerPhone = String(body.owner_phone ?? "").trim() || null;
   const addMe = body.add_me !== false;
   // Trial: open for N days, then closes unless a payment is recorded (0 / empty = no end date)
-  const trialDays = Number(body.trial_days ?? 7);
+  const trialDays = Number(body.trial_days ?? 5);
   const price = body.monthly_price === "" || body.monthly_price == null ? null : Number(body.monthly_price);
   const today = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jerusalem" }));
   const trialEnds = trialDays > 0

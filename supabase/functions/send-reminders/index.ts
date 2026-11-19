@@ -138,6 +138,29 @@ async function runDigests() {
   return { orgs: orgs?.length ?? 0, sent };
 }
 
+// Once a day (from 09:00): tell the platform admin which businesses need a payment reminder
+async function runAdminAlerts() {
+  const { data: rows, error } = await admin.rpc("due_admin_alerts");
+  if (error) throw error;
+  let sent = 0;
+  for (const r of rows ?? []) {
+    const parts = [
+      r.trial_ending ? `${r.trial_ending} ניסיון מסתיים` : "",
+      r.trial_ended ? `${r.trial_ended} ניסיון הסתיים` : "",
+      r.overdue ? `${r.overdue} באיחור בתשלום` : "",
+    ].filter(Boolean).join(" · ");
+    const { data: subs } = await admin.from("push_subscriptions")
+      .select("id, endpoint, p256dh, auth").eq("user_id", r.user_id);
+    sent += await push((subs ?? []) as Target[], {
+      title: "עסקים שדורשים טיפול",
+      body: `${parts}: ${r.names}`,
+      url: "/admin",
+      tag: "admin-billing",
+    });
+  }
+  return { admins: rows?.length ?? 0, sent };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
@@ -159,7 +182,9 @@ Deno.serve(async (req) => {
       const reminders = await runReminders();
       const digests = await runDigests();
       const unconfirmed = await runUnconfirmed().catch((err) => ({ error: (err as Error).message }));
-      return json({ ok: true, reminders, digests, unconfirmed });
+      // Before migration 0018 the function is missing: skip quietly
+      const adminAlerts = await runAdminAlerts().catch((err) => ({ error: (err as Error).message }));
+      return json({ ok: true, reminders, digests, unconfirmed, adminAlerts });
     } catch (err) {
       console.error(err);
       return json({ error: (err as Error).message }, 500);

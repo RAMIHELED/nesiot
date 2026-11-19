@@ -75,7 +75,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       });
   }, [session, reload]);
 
-  const org = orgs.find((o) => o.id === orgId) ?? orgs[0] ?? null;
+  // Coming back to the app (phone wakes it from the background): check the subscription again,
+  // so an ended trial shows the closed screen right away
+  useEffect(() => {
+    if (!session) return;
+    let last = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() - last > 60_000) {
+        last = Date.now();
+        setReload((n) => n + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [session]);
+
+    const org = orgs.find((o) => o.id === orgId) ?? orgs[0] ?? null;
 
   const setOrgId = (id: string) => {
     try {

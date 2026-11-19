@@ -12,7 +12,30 @@ type Biz = {
   rides_total: number; rides_30d: number; last_ride_added: string | null;
   monthly_price: number | null; started_on: string; trial_ends: string | null; is_open: boolean;
   last_payment_date: string | null; last_payment_amount: number | null; paid_total: number;
+  owner_name?: string | null; owner_phone?: string | null;
+  billing_status?: "" | "trial_ending" | "trial_ended" | "overdue"; next_due?: string | null;
 };
+
+const BILLING: Record<string, string> = {
+  trial_ending: "הניסיון מסתיים", trial_ended: "הניסיון הסתיים", overdue: "באיחור בתשלום",
+};
+
+/** WhatsApp text to the business owner, by situation */
+function billingMessage(b: Biz): string {
+  const hi = `היי${b.owner_name ? ` ${b.owner_name.split(" ")[0]}` : ""},`;
+  const price = b.monthly_price ? `${Number(b.monthly_price).toLocaleString("he-IL")} ₪ לחודש` : "";
+  const due = b.next_due ? b.next_due.split("-").reverse().slice(0, 2).join("/") : "";
+  if (b.billing_status === "trial_ending") {
+    return `${hi} תקופת הניסיון של "${b.name}" במערכת הנסיעות מסתיימת ב-${due}.\n` +
+      `כדי להמשיך בלי הפסקה${price ? ` (${price})` : ""}, אפשר להעביר בביט או בהעברה בנקאית ואני אפתח את החשבון להמשך.\nאיך היה עד עכשיו? 🙂`;
+  }
+  if (b.billing_status === "trial_ended") {
+    return `${hi} תקופת הניסיון של "${b.name}" הסתיימה והגישה נסגרה. כל הנתונים שמורים.\n` +
+      `רוצה להמשיך${price ? ` (${price})` : ""}? אחרי התשלום אני פותח מיד.`;
+  }
+  return `${hi} תזכורת קטנה: התשלום החודשי של "${b.name}" במערכת הנסיעות${price ? ` (${price})` : ""} היה לתאריך ${due}.\n` +
+    `אפשר בביט או בהעברה. תודה! 🙏`;
+}
 type Payment = { id: string; amount: number; paid_on: string; method: string | null; note: string | null };
 const METHODS: Record<string, string> = { transfer: "העברה", bit: "ביט", cash: "מזומן", card: "אשראי", check: "צ׳ק", other: "אחר" };
 const dmyDate = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
@@ -46,7 +69,7 @@ export default function Admin() {
   const { isAdmin, loading, refreshOrgs, setOrgId } = useSession();
   const [list, setList] = useState<Biz[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", owner_email: "", owner_name: "", owner_phone: "", add_me: true, trial_days: "7", monthly_price: "250" });
+  const [form, setForm] = useState({ name: "", owner_email: "", owner_name: "", owner_phone: "", add_me: true, trial_days: "5", monthly_price: "250" });
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<{ name: string; email: string; owner_name: string; phone: string; org_id: string; existed: boolean } | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -89,7 +112,7 @@ export default function Admin() {
       name: form.name.trim(), email: form.owner_email.trim().toLowerCase(), owner_name: form.owner_name.trim(),
       phone: form.owner_phone, org_id: data.org_id, existed: data.owner_existed,
     });
-    setForm({ name: "", owner_email: "", owner_name: "", owner_phone: "", add_me: true, trial_days: "7", monthly_price: "250" });
+    setForm({ name: "", owner_email: "", owner_name: "", owner_phone: "", add_me: true, trial_days: "5", monthly_price: "250" });
     load();
     refreshOrgs();
   };
@@ -149,6 +172,7 @@ export default function Admin() {
     monthly: list.filter((b) => b.plan_status === "active").reduce((s, b) => s + Number(b.monthly_price ?? 0), 0),
     rides30: list.reduce((s, b) => s + b.rides_30d, 0),
   };
+  const attention = list.filter((b) => b.billing_status);
   const shown = list.filter((b) =>
     filter === "all" ? true
       : filter === "closed" ? !b.is_open
@@ -166,6 +190,34 @@ export default function Admin() {
         <span className="chip">נסיעות ב-30 יום <b>{totals.rides30}</b></span>
       </div>
       {error && <p className="error">{error}</p>}
+
+      {/* Businesses that need a payment reminder */}
+      {attention.length > 0 && (
+        <div className="panel stack">
+          <strong>דורש טיפול ({attention.length})</strong>
+          {attention.map((b) => (
+            <div key={b.id} className="stack small attention-row">
+              <div className="row between">
+                <strong>{b.name}</strong>
+                <span className={`badge ${b.billing_status === "trial_ending" ? "" : "badge-debt"}`}>
+                  {BILLING[b.billing_status!]}{b.next_due ? ` · ${dmyDate(b.next_due)}` : ""}
+                </span>
+              </div>
+              <span className="muted">
+                {b.last_payment_date ? `תשלום אחרון ${dmyDate(b.last_payment_date)}` : "עוד לא שילם"}
+                {b.monthly_price ? ` · ${Number(b.monthly_price).toLocaleString("he-IL")} ₪ לחודש` : ""}
+              </span>
+              <div className="row">
+                <a className="btn small primary" target="_blank" rel="noreferrer" href={waLink(b.owner_phone ?? null, billingMessage(b))}>
+                  💬 תזכורת ל{b.owner_name || "בעל העסק"}
+                </a>
+                <button className="btn small" onClick={() => startEdit(b)}>רישום תשלום</button>
+                {!b.owner_phone && <span className="muted">אין טלפון לבעל העסק</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Open a business */}
       <form onSubmit={create} className="panel stack">
